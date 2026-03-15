@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base Styles ──────────────────────────────────────────────────────────── */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-salden-bg text-salden-text-primary font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* Focus styles — accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-salden-blue ring-offset-2 ring-offset-salden-bg;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-salden-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-salden-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-salden-text-muted;
+  }
+
+  /* Remove number input spinners */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-salden-blue/30 text-salden-text-primary;
+  }
+}
+
+/* ─── Component Utilities ──────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Gradient text utility */
+  .text-gradient {
+    @apply bg-gradient-to-r from-salden-blue to-salden-violet bg-clip-text text-transparent;
+  }
+
+  /* Glass card effect */
+  .glass-card {
+    @apply bg-salden-surface/80 backdrop-blur-md border border-salden-border;
+  }
+
+  /* Glow effects */
+  .glow-green {
+    box-shadow: 0 0 20px #00FF87, 0 0 40px #00FF8740;
+  }
+
+  .glow-red {
+    box-shadow: 0 0 20px #FF3B3B, 0 0 40px #FF3B3B40;
+  }
+
+  /* No touch callout (prevents context menu on long-press on mobile for row interactions) */
+  .no-callout {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* ─── ThirdWeb ConnectButton overrides ─────────────────────────────────────── */
+
+/* Ensure the connect button blends with our dark theme */
+[data-rk] {
+  --rk-colors-accentColor: #3B82F6 !important;
+  --rk-colors-accentColorForeground: #ffffff !important;
+}
