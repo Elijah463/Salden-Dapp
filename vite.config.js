@@ -32,7 +32,7 @@ export default defineConfig({
   },
 },
     sourcemap: false,
-    minify: "esbuild",
+    minify: true,
   },
   server: {
     headers: {
