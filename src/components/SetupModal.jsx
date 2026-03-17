@@ -198,14 +198,6 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
     }
   }, [fullName, companyName, employeeCount, allEmployees]);
 
-  // Trigger deploy after termsAgreed state has committed
-  useEffect(() => {
-    if (pendingDeploy && termsAgreed) {
-      setPendingDeploy(false);
-      handleDeploy(false);
-    }
-  }, [pendingDeploy, termsAgreed, handleDeploy]);
-
   // ── Deployment handler ────────────────────────────────────────────────────
 
   const handleDeploy = useCallback(async (agreedViaModal = false) => {
@@ -261,6 +253,14 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
       setDeployStatus("");
     }
   }, [termsAgreed, allEmployees, fullName, companyName, employeeCount, state.account, dispatch, syncData, addToast, onDeployed, onClose]);
+
+  // Trigger deploy after termsAgreed state has committed
+  useEffect(() => {
+    if (pendingDeploy && termsAgreed) {
+      setPendingDeploy(false);
+      handleDeploy(false);
+    }
+  }, [pendingDeploy, termsAgreed, handleDeploy]);
 
   if (!isOpen) return null;
 
