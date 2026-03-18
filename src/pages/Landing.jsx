@@ -28,7 +28,7 @@ import { client, supportedWallets } from "../lib/client.js";
 import { arcTestnet } from "../lib/chains.js";
 import { useApp } from "../context/AppContext.jsx";
 import logoImg from "../assets/logo.png";
-import arcLogoImg from "../assets/arc_logo.png";
+import arcLogoImg from "../assets/arc_logo.jpg";
 import usdcLogoImg from "../assets/usdc_logo.svg";
 
 // ─── Animation helpers ────────────────────────────────────────────────────────
