@@ -43,7 +43,7 @@ export function generatePayrollReceiptPDF({
 
   // Salden Logo
   try {
-    doc.addImage(logoUrl, "JPEG", margin, y, 28, 14);
+    doc.addImage(logoUrl, "PNG", margin, y, 60, 30);
   } catch {
     // If logo fails, continue without it
   }
@@ -52,12 +52,12 @@ export function generatePayrollReceiptPDF({
   doc.setFontSize(22);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(6, 11, 24);
-  doc.text("SALDEN", margin + 32, y + 9);
+  doc.text("SALDEN", margin + 64, y + 14);
 
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 116, 139);
-  doc.text("Decentralized Payroll", margin + 32, y + 14);
+  doc.text("Decentralized Payroll", margin + 64, y + 20);
 
   // "PAYROLL RECEIPT" on the right
   doc.setFontSize(14);
@@ -71,7 +71,7 @@ export function generatePayrollReceiptPDF({
   doc.text(`#${receiptNumber}`, pageWidth - margin, y + 12, { align: "right" });
   doc.text(date, pageWidth - margin, y + 17, { align: "right" });
 
-  y += 22;
+  y += 36;
 
   // Divider
   doc.setDrawColor(30, 45, 74);
