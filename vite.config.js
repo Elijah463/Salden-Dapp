@@ -16,8 +16,8 @@ export default defineConfig({
     include: ["buffer"],
   },
   build: {
-    sourcemap: true,
-    minify: true,
+    sourcemap: false,
+    minify: false,
   },
   server: {
     headers: {
