@@ -8,7 +8,7 @@ import { GithubLogo, DiscordLogo } from "@phosphor-icons/react";
 import { XLogo } from "@phosphor-icons/react";
 import Sidebar from "./Sidebar.jsx";
 import { useApp } from "../context/AppContext.jsx";
-import { ConnectButton } from "thirdweb/react";
+import { ConnectButton, darkTheme } from "thirdweb/react";
 import { client, supportedWallets } from "../lib/client.js";
 import { arcTestnet } from "../lib/chains.js";
 
@@ -30,9 +30,6 @@ export default function Layout({ children }) {
         <div className="flex items-center justify-between px-6 py-4 pl-20">
           {/* Logo area (sidebar trigger is absolutely positioned top-left) */}
           <div className="flex items-center gap-3">
-            <span className="text-salden-text-primary font-bold text-lg tracking-tight hidden sm:block">
-              Salden
-            </span>
           </div>
 
           {/* Wallet Connect Button */}
@@ -52,7 +49,18 @@ export default function Layout({ children }) {
                 size: "compact",
                 title: "Sign in to use Salden",
               }}
-              theme="dark"
+              theme={darkTheme({
+                colors: {
+                  skeletonBg: "hsl(245, 91%, 9%)",
+                  tertiaryBg: "hsl(244, 84%, 10%)",
+                  modalBg: "hsl(248, 78%, 11%)",
+                  accentText: "hsl(246, 89%, 11%)",
+                  borderColor: "hsl(249, 92%, 11%)",
+                  separatorLine: "hsl(250, 88%, 12%)",
+                  connectedButtonBgHover: "hsl(240, 86%, 9%)",
+                  connectedButtonBg: "hsl(242, 87%, 9%)",
+                },
+              })}
             />
           </div>
         </div>
@@ -92,7 +100,9 @@ export default function Layout({ children }) {
               </a>
 
               <a
-                href="#"
+                href="https://github.com/Elijah463/Salden-Dapp"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-salden-text-muted hover:text-salden-text-primary transition-colors group"
                 aria-label="Salden on GitHub"
               >

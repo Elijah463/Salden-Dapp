@@ -23,7 +23,7 @@ import {
   GithubLogo,
   DeviceMobile,
 } from "@phosphor-icons/react";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectButton, darkTheme, useActiveAccount } from "thirdweb/react";
 import { client, supportedWallets } from "../lib/client.js";
 import { arcTestnet } from "../lib/chains.js";
 import { useApp } from "../context/AppContext.jsx";
@@ -143,8 +143,7 @@ function HeroSection({ account, onContinueSetup }) {
           transition={{ duration: 0.6 }}
           className="flex items-center justify-center gap-3 mb-8"
         >
-          <img src={logoImg} alt="Salden" className="w-12 h-12 rounded-xl object-cover shadow-lg" />
-          <span className="text-salden-text-primary font-bold text-2xl tracking-tight">Salden</span>
+          <img src={logoImg} alt="Salden" className="h-14 w-auto object-contain shadow-lg" />
         </motion.div>
 
         {/* Headline */}
@@ -185,7 +184,18 @@ function HeroSection({ account, onContinueSetup }) {
               chain={arcTestnet}
               connectButton={{ label: "Connect Wallet" }}
               connectModal={{ size: "compact", title: "Sign in to use Salden" }}
-              theme="dark"
+              theme={darkTheme({
+                colors: {
+                  skeletonBg: "hsl(245, 91%, 9%)",
+                  tertiaryBg: "hsl(244, 84%, 10%)",
+                  modalBg: "hsl(248, 78%, 11%)",
+                  accentText: "hsl(246, 89%, 11%)",
+                  borderColor: "hsl(249, 92%, 11%)",
+                  separatorLine: "hsl(250, 88%, 12%)",
+                  connectedButtonBgHover: "hsl(240, 86%, 9%)",
+                  connectedButtonBg: "hsl(242, 87%, 9%)",
+                },
+              })}
             />
           ) : (
             <button
@@ -272,8 +282,7 @@ export default function Landing({ onConnected }) {
       <header className="fixed top-0 left-0 right-0 z-40 bg-salden-bg/80 backdrop-blur-md border-b border-salden-border/50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src={logoImg} alt="Salden" className="w-7 h-7 rounded-lg object-cover" />
-            <span className="font-bold text-base text-salden-text-primary">Salden</span>
+            <img src={logoImg} alt="Salden" className="h-8 w-auto object-contain" />
           </div>
           <ConnectButton
             client={client}
@@ -281,7 +290,18 @@ export default function Landing({ onConnected }) {
             chain={arcTestnet}
             connectButton={{ label: "Connect Wallet" }}
             connectModal={{ size: "compact", title: "Sign in to use Salden" }}
-            theme="dark"
+            theme={darkTheme({
+              colors: {
+                skeletonBg: "hsl(245, 91%, 9%)",
+                tertiaryBg: "hsl(244, 84%, 10%)",
+                modalBg: "hsl(248, 78%, 11%)",
+                accentText: "hsl(246, 89%, 11%)",
+                borderColor: "hsl(249, 92%, 11%)",
+                separatorLine: "hsl(250, 88%, 12%)",
+                connectedButtonBgHover: "hsl(240, 86%, 9%)",
+                connectedButtonBg: "hsl(242, 87%, 9%)",
+              },
+            })}
           />
         </div>
       </header>
@@ -520,13 +540,24 @@ export default function Landing({ onConnected }) {
             <p className="text-salden-text-secondary mb-8">
               Connect your wallet to get started. No account required. No email needed. Just your wallet.
             </p>
-            <ConnectButton
+<ConnectButton
               client={client}
               wallets={supportedWallets}
               chain={arcTestnet}
               connectButton={{ label: "Get Started — Connect Wallet" }}
               connectModal={{ size: "compact", title: "Sign in to use Salden" }}
-              theme="dark"
+              theme={darkTheme({
+                colors: {
+                  skeletonBg: "hsl(245, 91%, 9%)",
+                  tertiaryBg: "hsl(244, 84%, 10%)",
+                  modalBg: "hsl(248, 78%, 11%)",
+                  accentText: "hsl(246, 89%, 11%)",
+                  borderColor: "hsl(249, 92%, 11%)",
+                  separatorLine: "hsl(250, 88%, 12%)",
+                  connectedButtonBgHover: "hsl(240, 86%, 9%)",
+                  connectedButtonBg: "hsl(242, 87%, 9%)",
+                },
+              })}
             />
           </div>
         </AnimatedSection>
@@ -537,8 +568,7 @@ export default function Landing({ onConnected }) {
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <img src={logoImg} alt="Salden" className="w-7 h-7 rounded-lg object-cover" />
-              <span className="text-salden-text-secondary text-sm font-medium">Salden</span>
+              <img src={logoImg} alt="Salden" className="h-8 w-auto object-contain" />
             </div>
 
             <div className="flex items-center gap-2 text-sm text-salden-text-muted">
@@ -562,7 +592,9 @@ export default function Landing({ onConnected }) {
                 <span className="hidden sm:inline text-xs">Discord</span>
               </a>
               <a
-                href="#"
+                href="https://github.com/Elijah463/Salden-Dapp"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1.5 hover:text-salden-text-primary transition-colors px-2 py-1 rounded-lg hover:bg-salden-hover"
                 aria-label="GitHub"
               >
