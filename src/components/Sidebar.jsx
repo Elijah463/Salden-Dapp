@@ -15,7 +15,7 @@ import {
   X,
   ArrowLeft,
 } from "@phosphor-icons/react";
-import logoImg from "../assets/logo.jpg";
+import logoImg from "../assets/logo.png";
 
 const NAV_ITEMS = [
   {

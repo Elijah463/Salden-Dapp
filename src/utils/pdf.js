@@ -7,7 +7,7 @@
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import logoUrl from "../assets/logo.jpg";
+import logoUrl from "../assets/logo.png";
 
 /**
  * Generates a PDF payroll receipt for a given batch payment.
