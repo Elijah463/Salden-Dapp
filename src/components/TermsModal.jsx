@@ -1,10 +1,12 @@
 /**
  * TermsModal.jsx
- * Scrollable Terms of Service modal with gated I Agree / I Disagree buttons.
- * Buttons only activate once the user has scrolled to the bottom of the content.
+ * Terms of Service modal.
+ * Buttons are always clickable — no forced scroll required.
+ * I Agree  → calls onAgree() then closes.
+ * I Disagree → calls onDisagree() then closes.
  */
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import { X, CheckCircle, XCircle } from "@phosphor-icons/react";
 
 const TERMS_CONTENT = `Salden Terms of Service
@@ -36,43 +38,32 @@ By continuing to use Salden, you confirm that you have read, understood, and agr
 
 /**
  * @param {object} props
- * @param {boolean} props.isOpen
+ * @param {boolean}  props.isOpen
  * @param {function} props.onClose
- * @param {function} props.onAgree - Called when user clicks I Agree
+ * @param {function} props.onAgree    - Called when user clicks I Agree
+ * @param {function} props.onDisagree - Called when user clicks I Disagree
  */
-export default function TermsModal({ isOpen, onClose, onAgree }) {
+export default function TermsModal({ isOpen, onClose, onAgree, onDisagree }) {
   const scrollRef = useRef(null);
-  const [hasReadAll, setHasReadAll] = useState(false);
 
-  // Reset read state whenever modal opens
+  // Scroll content back to top whenever modal opens
   useEffect(() => {
     if (isOpen) {
-      setHasReadAll(false);
-      // Small timeout ensures the scroll element is rendered before we reset
       setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = 0;
-        }
+        if (scrollRef.current) scrollRef.current.scrollTop = 0;
       }, 50);
     }
   }, [isOpen]);
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 20;
-    if (atBottom) setHasReadAll(true);
-  }, []);
-
-  const handleAgree = useCallback(() => {
-    if (!hasReadAll) return;
+  const handleAgree = () => {
     onAgree?.();
     onClose?.();
-  }, [hasReadAll, onAgree, onClose]);
+  };
 
-  const handleDisagree = useCallback(() => {
+  const handleDisagree = () => {
+    onDisagree?.();
     onClose?.();
-  }, [onClose]);
+  };
 
   if (!isOpen) return null;
 
@@ -112,22 +103,14 @@ export default function TermsModal({ isOpen, onClose, onAgree }) {
         {/* Scrollable content */}
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-6 py-4 text-sm text-salden-text-secondary leading-relaxed whitespace-pre-line"
           tabIndex={0}
-          aria-label="Terms of Service content. Scroll to the bottom to enable acceptance."
+          aria-label="Terms of Service content"
         >
           {TERMS_CONTENT}
         </div>
 
-        {/* Scroll cue */}
-        {!hasReadAll && (
-          <p className="text-center text-xs text-salden-text-muted px-6 py-2 flex-shrink-0">
-            Scroll to the bottom to enable the acceptance buttons.
-          </p>
-        )}
-
-        {/* Action buttons */}
+        {/* Action buttons — always enabled */}
         <div className="flex gap-3 px-6 py-4 border-t border-salden-border flex-shrink-0">
           <button
             onClick={handleDisagree}
@@ -139,15 +122,9 @@ export default function TermsModal({ isOpen, onClose, onAgree }) {
 
           <button
             onClick={handleAgree}
-            disabled={!hasReadAll}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-              hasReadAll
-                ? "bg-salden-blue hover:bg-salden-blue-dark text-white cursor-pointer shadow-lg shadow-blue-900/30"
-                : "bg-salden-hover text-salden-text-muted cursor-not-allowed"
-            }`}
-            aria-disabled={!hasReadAll}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all bg-salden-blue hover:opacity-90 text-white cursor-pointer shadow-lg shadow-blue-900/30"
           >
-            <CheckCircle size={16} weight={hasReadAll ? "fill" : "regular"} />
+            <CheckCircle size={16} weight="fill" />
             I Agree
           </button>
         </div>

@@ -118,7 +118,7 @@ export async function executePayroll(
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const decimals = await usdc.decimals();
+  const decimals = 6;
 
   // Format amounts and compute total
   let totalWei = 0n;
@@ -178,7 +178,7 @@ export async function getPayrollHistory(cloneAddress, employerAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18;
 
   const filter = payrollContract.filters.BatchPaid(employerAddress);
   const events = await payrollContract.queryFilter(filter, 0, "latest");
@@ -237,7 +237,7 @@ export async function decodeBatchPayCalldata(txHash, cloneAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18;
 
   return decoded.args[0].map((address, i) => ({
     employee: address,
@@ -360,7 +360,7 @@ export async function withdrawFunds(signer, cloneAddress, amountUSDC) {
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
   const usdcAddress = await contract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const decimals = await usdc.decimals();
+  const decimals = 6;
   const amountWei = ethers.parseUnits(amountUSDC, decimals);
   const tx = await contract.withdraw(amountWei);
   return tx.wait(1);
@@ -379,7 +379,7 @@ export async function getCloneUSDCBalance(cloneAddress) {
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await contract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18;
   const balance = await usdc.balanceOf(cloneAddress);
   return ethers.formatUnits(balance, decimals);
 }

@@ -2,10 +2,10 @@
  * SetupModal.jsx
  * Payroll Setup & Deployment modal.
  * Collects employer info, employee data (CSV/JSON upload or manual entry),
- * handles ToS acceptance, then deploys the payroll clone on Arc Network.
+ * handles ToS acceptance via checkbox, then deploys the payroll clone on Arc Network.
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   X,
   UserCircle,
@@ -15,7 +15,6 @@ import {
   Plus,
   Trash,
   Spinner,
-  CheckCircle,
   Warning,
   FileText,
 } from "@phosphor-icons/react";
@@ -61,13 +60,9 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
   const [fileError, setFileError] = useState("");
   const [manualErrors, setManualErrors] = useState({});
 
-  // ToS modal
+  // ToS
   const [showTerms, setShowTerms] = useState(false);
   const [termsAgreed, setTermsAgreed] = useState(false);
-  // Deferred deploy flag: set when user agrees to ToS.
-  // A useEffect watches this flag so handleDeploy is called after React
-  // commits the termsAgreed = true state — eliminating the stale closure.
-  const [pendingDeploy, setPendingDeploy] = useState(false);
 
   // Deployment status
   const [isDeploying, setIsDeploying] = useState(false);
@@ -155,7 +150,6 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
   };
 
   const addManualRow = () => {
-    // Validate current last row before adding
     const lastRow = manualRows[manualRows.length - 1];
     const result = validateEmployee({
       ...lastRow,
@@ -177,37 +171,15 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
     setManualRows((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // ── ToS agree callback ────────────────────────────────────────────────────
-  //
-  // PATTERN: We do NOT call handleDeploy directly here because handleDeploy
-  // is a separate useCallback that depends on `termsAgreed`. Calling it from
-  // handleTermsAgree would capture a stale version where termsAgreed === false.
-  //
-  // Instead we set a `pendingDeploy` flag and let a useEffect trigger
-  // handleDeploy after React has committed the new termsAgreed = true state.
-
-  const handleTermsAgree = useCallback(() => {
-    setTermsAgreed(true);
-    if (
-      fullName.trim().length >= 2 &&
-      companyName.trim().length >= 2 &&
-      employeeCount &&
-      allEmployees.length >= 2
-    ) {
-      setPendingDeploy(true);
-    }
-  }, [fullName, companyName, employeeCount, allEmployees]);
-
   // ── Deployment handler ────────────────────────────────────────────────────
 
-  const handleDeploy = useCallback(async (agreedViaModal = false) => {
-    if (!agreedViaModal && !termsAgreed) return;
+  const handleDeploy = useCallback(async () => {
+    if (!termsAgreed) return;
     if (allEmployees.length < 2) {
       addToast("At least 2 employees are required to deploy.", "warning");
       return;
     }
 
-    // Check for duplicate wallet addresses
     const duplicates = findDuplicateWallets(allEmployees);
     if (duplicates.length > 0) {
       const details = duplicates
@@ -230,7 +202,6 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
       dispatch({ type: "SET_CLONE_ADDRESSES", payload: allClones });
       dispatch({ type: "SET_ACTIVE_CLONE", payload: cloneAddress });
 
-      // Save setup and employee data
       const setupData = {
         fullName: sanitizeString(fullName),
         companyName: sanitizeString(companyName),
@@ -252,15 +223,7 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
       setIsDeploying(false);
       setDeployStatus("");
     }
-  }, [termsAgreed, allEmployees, fullName, companyName, employeeCount, state.account, dispatch, syncData, addToast, onDeployed, onClose]);
-
-  // Trigger deploy after termsAgreed state has committed
-  useEffect(() => {
-    if (pendingDeploy && termsAgreed) {
-      setPendingDeploy(false);
-      handleDeploy(false);
-    }
-  }, [pendingDeploy, termsAgreed, handleDeploy]);
+  }, [termsAgreed, allEmployees, fullName, companyName, employeeCount, state.account, dispatch, syncData, addToast, onDeployed, onClose, getSigner]);
 
   if (!isOpen) return null;
 
@@ -508,22 +471,27 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
               )}
             </div>
 
-            {/* Terms of Service */}
+            {/* Terms of Service — checkbox */}
             <div className="pt-1">
-              <p className="text-xs text-salden-text-muted text-center">
-                By continuing you confirm to agree with our{" "}
-                <button
-                  onClick={() => setShowTerms(true)}
-                  className="text-salden-blue hover:underline font-medium"
-                >
-                  Terms of Service
-                </button>
-              </p>
-              {termsAgreed && (
-                <p className="text-xs text-salden-success flex items-center justify-center gap-1 mt-1.5">
-                  <CheckCircle size={12} weight="fill" /> Terms accepted
-                </p>
-              )}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={termsAgreed}
+                  onChange={(e) => setTermsAgreed(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-salden-border accent-salden-blue flex-shrink-0 cursor-pointer"
+                  aria-label="I agree to the Terms of Service"
+                />
+                <span className="text-xs text-salden-text-muted leading-relaxed">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setShowTerms(true); }}
+                    className="text-salden-blue hover:underline font-medium"
+                  >
+                    Terms of Service
+                  </button>
+                </span>
+              </label>
             </div>
 
             {/* Deploy status */}
@@ -546,8 +514,8 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
           {/* Footer CTA */}
           <div className="px-6 py-4 border-t border-salden-border flex-shrink-0">
             <button
-              onClick={() => canDeploy ? handleDeploy(false) : setShowTerms(true)}
-              disabled={isDeploying || (!termsAgreed && !canDeploy && allEmployees.length < 2)}
+              onClick={handleDeploy}
+              disabled={!canDeploy}
               className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all ${
                 canDeploy
                   ? "bg-gradient-to-r from-salden-blue to-salden-violet hover:opacity-90 text-white shadow-lg"
@@ -570,7 +538,7 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
                 {allEmployees.length < 2
                   ? "Add at least 2 employees to continue."
                   : !termsAgreed
-                  ? "Accept the Terms of Service to proceed."
+                  ? "Check the Terms of Service box to proceed."
                   : "Complete all fields to deploy."}
               </p>
             )}
@@ -582,7 +550,8 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
       <TermsModal
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
-        onAgree={handleTermsAgree}
+        onAgree={() => setTermsAgreed(true)}
+        onDisagree={() => setTermsAgreed(false)}
       />
     </>
   );
