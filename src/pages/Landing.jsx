@@ -196,6 +196,17 @@ function HeroSection({ account, onContinueSetup }) {
                   connectedButtonBg: "hsl(242, 87%, 9%)",
                 },
               })}
+              supportedTokens={{
+                5042002: [
+                  {
+                    address: "0x3600000000000000000000000000000000000000",
+                    name: "USD Coin",
+                    symbol: "USDC",
+                    icon: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
+                    decimals: 18,
+                  },
+                ],
+              }}
             />
           ) : (
             <button
@@ -302,6 +313,17 @@ export default function Landing({ onConnected }) {
                 connectedButtonBg: "hsl(242, 87%, 9%)",
               },
             })}
+              supportedTokens={{
+                5042002: [
+                  {
+                    address: "0x3600000000000000000000000000000000000000",
+                    name: "USD Coin",
+                    symbol: "USDC",
+                    icon: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
+                    decimals: 18,
+                  },
+                ],
+              }}
           />
         </div>
       </header>
@@ -558,6 +580,17 @@ export default function Landing({ onConnected }) {
                   connectedButtonBg: "hsl(242, 87%, 9%)",
                 },
               })}
+              supportedTokens={{
+                5042002: [
+                  {
+                    address: "0x3600000000000000000000000000000000000000",
+                    name: "USD Coin",
+                    symbol: "USDC",
+                    icon: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
+                    decimals: 18,
+                  },
+                ],
+              }}
             />
           </div>
         </AnimatedSection>
