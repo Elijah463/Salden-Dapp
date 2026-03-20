@@ -27,14 +27,21 @@ export function useEthersSigner() {
 
   /**
    * Resolves to an ethers v6 Signer via thirdweb's official ethers6 adapter.
-   * Works for ALL wallet types: MetaMask, Coinbase, Rainbow, Zerion, Rabby,
-   * and any WalletConnect-based wallet that does not inject window.ethereum.
+   * Both wallet AND account must be ready before the adapter is called.
+   * The adapter internally reads account.address — if account is undefined
+   * it throws "Cannot read properties of undefined (reading 'address')".
+   * Guarding here converts that crash into a clear user-facing message.
    * @returns {Promise<import("ethers").Signer>}
    */
   const getSigner = useCallback(async () => {
-    if (!wallet) throw new Error("No wallet connected. Please connect a wallet first.");
+    if (!wallet) {
+      throw new Error("No wallet connected. Please connect a wallet first.");
+    }
+    if (!account) {
+      throw new Error("Wallet account not ready. Please wait a moment and try again.");
+    }
     return ethers6Adapter.signer.toEthers({ client, chain: arcTestnet, wallet });
-  }, [wallet]);
+  }, [wallet, account]);
 
   /**
    * Signs a plain text message using the active thirdweb account.
