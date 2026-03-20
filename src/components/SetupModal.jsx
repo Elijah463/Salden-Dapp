@@ -201,7 +201,7 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
 
     try {
       const signer = await getSigner();
-      const cloneAddress = await getOrDeployPayrollClone(signer, (status) => {
+      const cloneAddress = await getOrDeployPayrollClone(signer, account.address, (status) => {
         setDeployStatus(status);
       });
 

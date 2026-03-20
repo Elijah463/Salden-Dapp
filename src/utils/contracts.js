@@ -38,8 +38,7 @@ function getReadProvider() {
  * @param {Function} onStatus - (message: string) => void
  * @returns {Promise<string>} Clone address
  */
-export async function getOrDeployPayrollClone(signer, onStatus = () => {}) {
-  const employerAddress = await signer.getAddress();
+export async function getOrDeployPayrollClone(signer, employerAddress, onStatus = () => {}) {
   const factory = new ethers.Contract(
     ADDRESSES.PAYROLL_FACTORY,
     PAYROLL_FACTORY_ABI,
@@ -120,9 +119,9 @@ export async function executePayroll(
   cloneAddress,
   employees,
   onStatus = () => {},
-  onProgress = () => {}
+  onProgress = () => {},
+  employerAddress
 ) {
-  const employerAddress = await signer.getAddress();
   const BATCH_SIZE = 1000;
 
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
@@ -287,8 +286,7 @@ export async function getUserRegistry(userAddress) {
  * @param {Function} onStatus
  * @returns {Promise<string>} Registry address
  */
-export async function createUserRegistry(signer, onStatus = () => {}) {
-  const employerAddress = await signer.getAddress();
+export async function createUserRegistry(signer, employerAddress, onStatus = () => {}) {
   const existing = await getUserRegistry(employerAddress);
   if (existing) return existing;
 

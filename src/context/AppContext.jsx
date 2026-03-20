@@ -244,7 +244,7 @@ export function AppProvider({ children }) {
         regAddr = await getUserRegistry(account);
       }
       if (!regAddr) {
-        regAddr = await createUserRegistry(signer);
+        regAddr = await createUserRegistry(signer, account);
         dispatch({ type: "SET_REGISTRY", payload: regAddr });
       }
 

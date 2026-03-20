@@ -557,7 +557,8 @@ export default function HRDashboard() {
         activeCloneAddress,
         employees,
         (status) => setExecuteStatus(status),
-        (current, total) => setExecuteProgress({ current, total })
+        (current, total) => setExecuteProgress({ current, total }),
+        state.account
       );
       addToast(
         `Payroll executed successfully for ${employees.length} employee${employees.length !== 1 ? "s" : ""}.`,
