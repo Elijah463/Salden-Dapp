@@ -43,8 +43,8 @@ export const PAYROLL_CLONE_ABI = [
 // ─── SaldenRegistryFactory ABI ───────────────────────────────────────────────
 // Factory that creates a personal registry contract per wallet for IPFS CID storage.
 export const REGISTRY_FACTORY_ABI = [
-  "function getRegistry(address user) view returns (address)",
-  "function createRegistry() external",
+  "function getRegistry(address employer) external view returns (address)",
+  "function createRegistry() external returns (address registry)",
   "event RegistryCreated(address indexed owner, address indexed registry)",
 ];
 

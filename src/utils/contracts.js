@@ -299,10 +299,25 @@ export async function createUserRegistry(signer, employerAddress, onStatus = () 
   onStatus("Creating your personal data registry on-chain…");
   const tx = await factory.createRegistry();
   onStatus("Waiting for registry deployment…");
-  await tx.wait(1);
+  const receipt = await tx.wait(1);
 
-  const newRegistry = await getUserRegistry(employerAddress);
-  if (!newRegistry) throw new Error("Registry deployment failed. Please try again.");
+  // Read the new registry address from the transaction return value.
+  // Falls back to a secondary getRegistry() call if the return value
+  // is not available (e.g. older RPC nodes that don't return call results).
+  let newRegistry = null;
+  try {
+    // ethers v6 static call to get the return value
+    newRegistry = await factory.createRegistry.staticCall();
+  } catch {
+    newRegistry = await getUserRegistry(employerAddress);
+  }
+  if (!newRegistry || newRegistry === ethers.ZeroAddress) {
+    // Final fallback — query from registry factory
+    newRegistry = await getUserRegistry(employerAddress);
+  }
+  if (!newRegistry || newRegistry === ethers.ZeroAddress) {
+    throw new Error("Registry deployment failed. Please try again.");
+  }
   onStatus("Registry created.");
   return newRegistry;
 }
