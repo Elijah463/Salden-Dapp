@@ -30,6 +30,8 @@ import {
   UsersThree,
   CurrencyDollar,
   Buildings,
+  UploadSimple,
+  FileText,
 } from "@phosphor-icons/react";
 import { useApp } from "../context/AppContext.jsx";
 import { useEthersSigner } from "../hooks/useEthersSigner.js";
@@ -38,7 +40,11 @@ import {
   validateEmployee,
   sanitizeString,
   findDuplicateWallets,
+  validateEmployeeFile,
+  normalizeEmployeeRows,
 } from "../utils/validation.js";
+import Papa from "papaparse";
+import ConfigureModal from "../components/ConfigureModal.jsx";
 import {
   executePayroll,
   getPayrollHistory,
@@ -56,25 +62,29 @@ function truncAddr(addr) {
 
 // ─── Add / Edit Employee Modal ────────────────────────────────────────────────
 
-function EmployeeModal({ mode, employee, rowIndex, onSave, onClose }) {
+function EmployeeModal({ mode, employee, rowIndex, onSave, onSaveBulk, onClose }) {
+  // "single" = manual form, "bulk" = CSV/JSON import (add mode only)
+  const [tab, setTab] = useState("single");
+
+  // Single entry form
   const [form, setForm] = useState({
-    fullName: employee?.fullName || "",
-    department: employee?.department || "",
-    walletAddress: employee?.walletAddress || "",
-    salaryAmount: employee?.salaryAmount?.toString() || "",
+    fullName:      employee?.fullName         || "",
+    department:    employee?.department       || "",
+    walletAddress: employee?.walletAddress    || "",
+    salaryAmount:  employee?.salaryAmount?.toString() || "",
   });
-  const [errors, setErrors] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [errors,  setErrors]  = useState([]);
+  const [saving,  setSaving]  = useState(false);
+
+  // Bulk import state
+  const fileInputRef              = useRef(null);
+  const [bulkEmployees, setBulkEmployees] = useState([]);
+  const [fileError,     setFileError]     = useState("");
+  const [importing,     setImporting]     = useState(false);
 
   const handleSave = async () => {
-    const result = validateEmployee({
-      ...form,
-      salaryAmount: Number(form.salaryAmount),
-    });
-    if (!result.valid) {
-      setErrors(result.errors);
-      return;
-    }
+    const result = validateEmployee({ ...form, salaryAmount: Number(form.salaryAmount) });
+    if (!result.valid) { setErrors(result.errors); return; }
     setSaving(true);
     try {
       await onSave({ ...form, salaryAmount: Number(form.salaryAmount) }, rowIndex);
@@ -86,82 +96,163 @@ function EmployeeModal({ mode, employee, rowIndex, onSave, onClose }) {
     }
   };
 
+  const handleFileChange = async (e) => {
+    setFileError("");
+    setBulkEmployees([]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = await validateEmployeeFile(file);
+    if (!validation.valid) { setFileError(validation.error); return; }
+
+    if (validation.type === "csv") {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          const normalized = normalizeEmployeeRows(result.data);
+          const valid = normalized.filter((emp) => validateEmployee(emp).valid);
+          if (!valid.length) { setFileError("No valid records found. Ensure columns: FullName, Department, Wallet Address, Salary Amount."); return; }
+          setBulkEmployees(valid);
+        },
+        error: () => setFileError("Failed to parse CSV file."),
+      });
+    } else {
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const rows = Array.isArray(parsed) ? parsed : parsed.employees || [];
+        const normalized = normalizeEmployeeRows(rows);
+        const valid = normalized.filter((emp) => validateEmployee(emp).valid);
+        if (!valid.length) { setFileError("No valid records found in JSON."); return; }
+        setBulkEmployees(valid);
+      } catch { setFileError("Invalid JSON structure."); }
+    }
+  };
+
+  const handleBulkImport = async () => {
+    if (!bulkEmployees.length) return;
+    setImporting(true);
+    try {
+      await onSaveBulk(bulkEmployees);
+      onClose();
+    } catch (err) {
+      setFileError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[9000] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       <div className="relative bg-salden-surface border border-salden-border rounded-2xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-salden-border">
           <h3 className="font-bold text-salden-text-primary">
             {mode === "add" ? "Add Employee" : "Edit Employee"}
           </h3>
-          <button
-            onClick={onClose}
-            className="text-salden-text-muted hover:text-salden-text-primary transition-colors"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="text-salden-text-muted hover:text-salden-text-primary transition-colors" aria-label="Close">
             <X size={18} />
           </button>
         </div>
 
-        <div className="px-5 py-5 space-y-3">
-          {errors.length > 0 && (
-            <div className="bg-red-950/30 border border-red-800/40 rounded-xl p-3 text-xs text-red-300 space-y-1">
-              {errors.map((e, i) => (
-                <p key={i} className="flex items-start gap-1.5">
-                  <Warning size={12} className="flex-shrink-0 mt-0.5" />
-                  {e}
-                </p>
+        {/* Tab toggle — only in add mode */}
+        {mode === "add" && (
+          <div className="flex border-b border-salden-border">
+            {["single", "bulk"].map((t) => (
+              <button
+                key={t}
+                onClick={() => { setTab(t); setErrors([]); setFileError(""); }}
+                className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${
+                  tab === t
+                    ? "text-salden-blue border-b-2 border-salden-blue"
+                    : "text-salden-text-muted hover:text-salden-text-secondary"
+                }`}
+              >
+                {t === "single" ? "Single Entry" : "Bulk Import (CSV / JSON)"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Single entry ── */}
+        {(mode === "edit" || tab === "single") && (
+          <>
+            <div className="px-5 py-5 space-y-3">
+              {errors.length > 0 && (
+                <div className="bg-red-950/30 border border-red-800/40 rounded-xl p-3 text-xs text-red-300 space-y-1">
+                  {errors.map((e, i) => (
+                    <p key={i} className="flex items-start gap-1.5"><Warning size={12} className="flex-shrink-0 mt-0.5" />{e}</p>
+                  ))}
+                </div>
+              )}
+              {[
+                { field: "fullName",      placeholder: "Full Name",             type: "text"   },
+                { field: "department",    placeholder: "Department",            type: "text"   },
+                { field: "walletAddress", placeholder: "Wallet Address (0x...)",type: "text", mono: true },
+                { field: "salaryAmount",  placeholder: "Salary Amount (USDC)",  type: "number" },
+              ].map(({ field, placeholder, type, mono }) => (
+                <input
+                  key={field}
+                  type={type}
+                  placeholder={placeholder}
+                  value={form[field]}
+                  onChange={(e) => { setForm((p) => ({ ...p, [field]: e.target.value })); setErrors([]); }}
+                  maxLength={field === "walletAddress" ? 42 : 200}
+                  min={type === "number" ? 0 : undefined}
+                  step={type === "number" ? "0.01" : undefined}
+                  className={`w-full bg-salden-card border border-salden-border rounded-xl px-3.5 py-2.5 text-sm text-salden-text-primary placeholder-salden-text-muted focus:outline-none focus:border-salden-blue/60 transition-colors ${mono ? "font-mono" : ""}`}
+                />
               ))}
             </div>
-          )}
+            <div className="px-5 pb-5 flex gap-3">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-salden-border text-salden-text-secondary hover:bg-salden-hover transition-colors text-sm">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-salden-blue hover:bg-salden-blue-dark text-white text-sm font-semibold transition-colors disabled:opacity-60">
+                {saving ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                {mode === "add" ? "Add Employee" : "Save Changes"}
+              </button>
+            </div>
+          </>
+        )}
 
-          {[
-            { field: "fullName", placeholder: "Full Name", type: "text" },
-            { field: "department", placeholder: "Department", type: "text" },
-            { field: "walletAddress", placeholder: "Wallet Address (0x...)", type: "text", mono: true },
-            { field: "salaryAmount", placeholder: "Salary Amount (USDC)", type: "number" },
-          ].map(({ field, placeholder, type, mono }) => (
-            <input
-              key={field}
-              type={type}
-              placeholder={placeholder}
-              value={form[field]}
-              onChange={(e) => {
-                setForm((p) => ({ ...p, [field]: e.target.value }));
-                setErrors([]);
-              }}
-              maxLength={field === "walletAddress" ? 42 : 200}
-              min={type === "number" ? 0 : undefined}
-              step={type === "number" ? "0.01" : undefined}
-              className={`w-full bg-salden-card border border-salden-border rounded-xl px-3.5 py-2.5 text-sm text-salden-text-primary placeholder-salden-text-muted focus:outline-none focus:border-salden-blue/60 transition-colors ${mono ? "font-mono" : ""}`}
-            />
-          ))}
-        </div>
+        {/* ── Bulk import ── */}
+        {mode === "add" && tab === "bulk" && (
+          <div className="px-5 py-5 space-y-4">
+            <p className="text-xs text-salden-text-muted bg-salden-hover/50 border border-salden-border rounded-lg px-3 py-2">
+              <FileText size={12} className="inline mr-1.5" weight="fill" />
+              Required columns: <strong className="text-salden-text-secondary">FullName</strong>, <strong className="text-salden-text-secondary">Department</strong>, <strong className="text-salden-text-secondary">Wallet Address</strong>, <strong className="text-salden-text-secondary">Salary Amount</strong>.
+            </p>
 
-        <div className="px-5 pb-5 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-salden-border text-salden-text-secondary hover:bg-salden-hover transition-colors text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-salden-blue hover:bg-salden-blue-dark text-white text-sm font-semibold transition-colors disabled:opacity-60"
-          >
-            {saving ? (
-              <Spinner size={14} className="animate-spin" />
-            ) : (
-              <CheckCircle size={14} />
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-salden-border rounded-xl p-6 text-center cursor-pointer hover:border-salden-blue/50 hover:bg-salden-hover/30 transition-all"
+            >
+              <UploadSimple size={22} className="mx-auto mb-2 text-salden-text-muted" />
+              <p className="text-sm text-salden-text-secondary">Click to upload CSV or JSON</p>
+              <p className="text-xs text-salden-text-muted mt-1">Max 5 MB</p>
+              {bulkEmployees.length > 0 && (
+                <p className="text-xs text-salden-success mt-2 font-medium">✓ {bulkEmployees.length} records ready to import</p>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file" accept=".csv,.json" onChange={handleFileChange} className="hidden" />
+
+            {fileError && (
+              <p className="text-xs text-salden-error flex items-center gap-1"><Warning size={12} /> {fileError}</p>
             )}
-            {mode === "add" ? "Add Employee" : "Save Changes"}
-          </button>
-        </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-salden-border text-salden-text-secondary hover:bg-salden-hover transition-colors text-sm">Cancel</button>
+              <button
+                onClick={handleBulkImport}
+                disabled={!bulkEmployees.length || importing}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-salden-blue hover:bg-salden-blue-dark text-white text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {importing ? <Spinner size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                Import {bulkEmployees.length > 0 ? `${bulkEmployees.length} Employees` : "Employees"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -364,6 +455,7 @@ export default function HRDashboard() {
   const searchRef = useRef(null);
 
   const [employeeModal, setEmployeeModal] = useState(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [payrollHistory, setPayrollHistory] = useState([]);
@@ -449,6 +541,20 @@ export default function HRDashboard() {
   }, [contextMenu]);
 
   // ── Add employee ───────────────────────────────────────────────────────────
+
+  const handleAddEmployeeBulk = useCallback(
+    async (newEmployees) => {
+      const merged = [...employees, ...newEmployees];
+      dispatch({ type: "SET_EMPLOYEES", payload: merged });
+      try {
+        await syncData({ employees: merged });
+        addToast(`${newEmployees.length} employee${newEmployees.length !== 1 ? "s" : ""} imported successfully.`, "success");
+      } catch {
+        addToast("Employees added locally but sync failed. Changes may not persist.", "warning");
+      }
+    },
+    [employees, dispatch, syncData, addToast]
+  );
 
   const handleAddEmployee = useCallback(
     async (data) => {
@@ -700,6 +806,17 @@ export default function HRDashboard() {
           </div>
 
           {/* Action buttons */}
+          {/* Configure button — shown prominently when no data is set up yet */}
+          {(!state.payrollSetup || employees.length === 0) && (
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-salden-blue/10 border border-salden-blue/40 text-salden-blue hover:bg-salden-blue/20 transition-all text-sm font-semibold"
+            >
+              <FileText size={15} />
+              Configure Payroll Data
+            </button>
+          )}
+
           <button
             onClick={() => setEmployeeModal({ mode: "add" })}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-salden-surface border border-salden-border text-salden-text-secondary hover:border-salden-blue/50 hover:text-salden-blue transition-all text-sm font-medium"
@@ -910,6 +1027,7 @@ export default function HRDashboard() {
           employee={employeeModal.employee}
           rowIndex={employeeModal.rowIndex}
           onSave={employeeModal.mode === "add" ? handleAddEmployee : handleEditEmployee}
+          onSaveBulk={handleAddEmployeeBulk}
           onClose={() => setEmployeeModal(null)}
         />
       )}
@@ -919,6 +1037,14 @@ export default function HRDashboard() {
           employee={employees[deleteModal]}
           onConfirm={() => handleDeleteEmployee(deleteModal)}
           onClose={() => setDeleteModal(null)}
+        />
+      )}
+
+      {showConfigModal && (
+        <ConfigureModal
+          isOpen={showConfigModal}
+          onClose={() => setShowConfigModal(false)}
+          onComplete={() => setShowConfigModal(false)}
         />
       )}
 

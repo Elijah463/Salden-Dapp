@@ -1,19 +1,29 @@
 /**
  * App.jsx
  * Root application component.
- * Wires the thirdweb v5 wallet layer to AppContext via the useEthersSigner hook,
- * manages routing, and drives the onboarding flow.
+ *
+ * ONBOARDING FLOW:
+ *   1. Wallet connects → useEthersSigner wires the signer getter into AppContext
+ *   2. initialize() fires → derives encryption key → shows OnboardingModal
+ *   3. OnboardingModal checks for existing clone on-chain
+ *      a. Found     → user clicks "Proceed to Dashboard" → loadData → navigate
+ *      b. Not found → user deploys → success screen → "Proceed to Dashboard" → navigate
+ *   4. Dashboard shows. If no employee data: "Configure Payroll Data" button available.
+ *
+ * KEY FIX: setSignerGetter(getSigner) — not setSignerGetter(() => getSigner).
+ * Storing the wrapper function caused signerGetterRef.current() to return the
+ * getSigner function itself rather than calling it, resulting in UNSUPPORTED_OPERATION
+ * errors on every contract write.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { useApp } from "./context/AppContext.jsx";
 import { useEthersSigner } from "./hooks/useEthersSigner.js";
-import { getUserPayrolls } from "./utils/contracts.js";
 import Layout from "./components/Layout.jsx";
 import ToastContainer from "./components/Toast.jsx";
-import SetupModal from "./components/SetupModal.jsx";
+import OnboardingModal from "./components/OnboardingModal.jsx";
 import Landing from "./pages/Landing.jsx";
 import HRDashboard from "./pages/HRDashboard.jsx";
 import Attendance from "./pages/Attendance.jsx";
@@ -29,34 +39,40 @@ function RequireWallet({ children }) {
 
 export default function App() {
   const account = useActiveAccount();
-  const wallet = useActiveWallet();
+  const wallet  = useActiveWallet();
   const navigate = useNavigate();
-  const { state, dispatch, addToast, deriveEncryptionKey, setSignerGetter, loadData } = useApp();
+
+  const {
+    state,
+    dispatch,
+    addToast,
+    deriveEncryptionKey,
+    setSignerGetter,
+    loadData,
+  } = useApp();
+
   const { getSigner, signMessage } = useEthersSigner();
 
-  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Wire the signer getter into AppContext whenever the wallet changes.
-  // getSigner is stable (useCallback on wallet) so this only fires on real
-  // wallet connect/disconnect events, not spurious re-renders.
+  // Store the derived CryptoKey in a ref so the proceed callback can access it
+  // without being listed as an effect dependency (it never changes the flow).
+  const cryptoKeyRef = useRef(null);
+
+  // ── Wire the signer getter into AppContext ─────────────────────────────────
+  // getSigner is stable (useCallback) so this only fires on real connect/disconnect.
+  // IMPORTANT: pass getSigner directly, not () => getSigner.
+  // Wrapping it causes signerGetterRef.current() to return the function instead
+  // of calling it, so every contract write throws UNSUPPORTED_OPERATION.
   useEffect(() => {
     if (wallet) {
-      setSignerGetter(() => getSigner);
+      setSignerGetter(getSigner);
     } else {
       setSignerGetter(null);
     }
   }, [wallet, getSigner, setSignerGetter]);
 
-  // On wallet connect: sign → derive key → check for clone → load data.
-  //
-  // Dep array rationale:
-  //   account?.address  — primary trigger: fires only when wallet address changes
-  //   state.hasSignedMessage — prevents re-init if component re-renders while
-  //                            already initialised (guard inside is idempotent)
-  //   All other deps (dispatch, navigate, addToast, deriveEncryptionKey,
-  //   signMessage, loadData, setShowSetupModal) are stable: they come from
-  //   useReducer, react-router, or useCallback with stable inner deps.
-  //   Adding them satisfies exhaustive-deps without changing behaviour.
+  // ── On wallet connect: sign → derive key → show onboarding ─────────────────
   useEffect(() => {
     if (!account || state.hasSignedMessage) return;
     let cancelled = false;
@@ -64,21 +80,10 @@ export default function App() {
     const initialize = async () => {
       try {
         dispatch({ type: "SET_ACCOUNT", payload: account.address });
-
         const cryptoKey = await deriveEncryptionKey(account.address, signMessage);
         if (cancelled) return;
-
-        const clones = await getUserPayrolls(account.address);
-        if (cancelled) return;
-
-        dispatch({ type: "SET_CLONE_ADDRESSES", payload: clones });
-
-        if (clones.length > 0) {
-          await loadData(account.address, cryptoKey);
-          navigate("/dashboard", { replace: true });
-        } else {
-          setShowSetupModal(true);
-        }
+        cryptoKeyRef.current = cryptoKey;
+        setShowOnboarding(true);
       } catch (err) {
         if (!cancelled) {
           addToast("Wallet initialization failed: " + err.message, "error");
@@ -92,25 +97,32 @@ export default function App() {
     account?.address,
     state.hasSignedMessage,
     dispatch,
-    navigate,
     addToast,
     deriveEncryptionKey,
     signMessage,
-    loadData,
   ]);
 
-  // On wallet disconnect: reset all state and return to landing.
-  //
-  // Dep array rationale:
-  //   wallet    — primary trigger: fires only when wallet connects/disconnects
-  //   dispatch  — stable ref from useReducer
-  //   navigate  — stable ref from react-router
-  //   state.isWalletConnected was previously read here as a guard, but RESET
-  //   is fully idempotent (resetting already-reset state is a no-op), so the
-  //   guard is unnecessary and removed. This lets us keep a complete dep array.
+  // ── Proceed to dashboard ────────────────────────────────────────────────────
+  // Called by OnboardingModal when the user clicks "Proceed to Dashboard".
+  // Loads IPFS data if a clone exists, then navigates.
+  const handleProceedToDashboard = useCallback(async (clones) => {
+    setShowOnboarding(false);
+    try {
+      if (clones.length > 0 && cryptoKeyRef.current && account) {
+        await loadData(account.address, cryptoKeyRef.current);
+      }
+    } catch {
+      // loadData failure is non-fatal — user lands on dashboard with empty state
+    }
+    navigate("/dashboard", { replace: true });
+  }, [account, loadData, navigate]);
+
+  // ── On wallet disconnect: reset and return to landing ──────────────────────
   useEffect(() => {
     if (!wallet) {
       dispatch({ type: "RESET" });
+      setShowOnboarding(false);
+      cryptoKeyRef.current = null;
       navigate("/", { replace: true });
     }
   }, [wallet, dispatch, navigate]);
@@ -123,27 +135,29 @@ export default function App() {
           element={
             <Landing
               onConnected={() => {
-                if (state.hasPayrollClone) navigate("/dashboard");
-                else if (account) setShowSetupModal(true);
+                // If already fully initialised and has a clone, go to dashboard
+                if (state.hasPayrollClone && state.hasSignedMessage) {
+                  navigate("/dashboard");
+                }
               }}
             />
           }
         />
-        <Route path="/dashboard" element={<RequireWallet><Layout><HRDashboard /></Layout></RequireWallet>} />
-        <Route path="/attendance" element={<RequireWallet><Layout><Attendance /></Layout></RequireWallet>} />
-        <Route path="/compliance" element={<RequireWallet><Layout><Compliance /></Layout></RequireWallet>} />
-        <Route path="/settings" element={<RequireWallet><Layout><Settings /></Layout></RequireWallet>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/dashboard"   element={<RequireWallet><Layout><HRDashboard /></Layout></RequireWallet>} />
+        <Route path="/attendance"  element={<RequireWallet><Layout><Attendance  /></Layout></RequireWallet>} />
+        <Route path="/compliance"  element={<RequireWallet><Layout><Compliance  /></Layout></RequireWallet>} />
+        <Route path="/settings"    element={<RequireWallet><Layout><Settings    /></Layout></RequireWallet>} />
+        <Route path="*"            element={<Navigate to="/" replace />} />
       </Routes>
 
-      <SetupModal
-        isOpen={showSetupModal}
-        onClose={() => setShowSetupModal(false)}
-        onDeployed={() => {
-          setShowSetupModal(false);
-          navigate("/dashboard", { replace: true });
-        }}
-      />
+      {/* Onboarding modal — shown after sign, before dashboard */}
+      {showOnboarding && account && (
+        <OnboardingModal
+          employerAddress={account.address}
+          getSigner={getSigner}
+          onProceedToDashboard={handleProceedToDashboard}
+        />
+      )}
 
       <ToastContainer />
     </>

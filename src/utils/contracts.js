@@ -127,7 +127,7 @@ export async function executePayroll(
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const decimals = await usdc.decimals();
+  const decimals = 6; // Arc testnet USDC: 6 decimals for contract interactions
 
   // Format amounts and compute total
   let totalWei = 0n;
@@ -187,7 +187,7 @@ export async function getPayrollHistory(cloneAddress, employerAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18; // Arc testnet USDC: 18 decimals for display
 
   const filter = payrollContract.filters.BatchPaid(employerAddress);
   const events = await payrollContract.queryFilter(filter, 0, "latest");
@@ -246,7 +246,7 @@ export async function decodeBatchPayCalldata(txHash, cloneAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18; // Arc testnet USDC: 18 decimals for display
 
   return decoded.args[0].map((address, i) => ({
     employee: address,
@@ -301,20 +301,8 @@ export async function createUserRegistry(signer, employerAddress, onStatus = () 
   onStatus("Waiting for registry deployment…");
   const receipt = await tx.wait(1);
 
-  // Read the new registry address from the transaction return value.
-  // Falls back to a secondary getRegistry() call if the return value
-  // is not available (e.g. older RPC nodes that don't return call results).
-  let newRegistry = null;
-  try {
-    // ethers v6 static call to get the return value
-    newRegistry = await factory.createRegistry.staticCall();
-  } catch {
-    newRegistry = await getUserRegistry(employerAddress);
-  }
-  if (!newRegistry || newRegistry === ethers.ZeroAddress) {
-    // Final fallback — query from registry factory
-    newRegistry = await getUserRegistry(employerAddress);
-  }
+  // Query the registry address from the factory after deployment
+  const newRegistry = await getUserRegistry(employerAddress);
   if (!newRegistry || newRegistry === ethers.ZeroAddress) {
     throw new Error("Registry deployment failed. Please try again.");
   }
@@ -403,7 +391,7 @@ export async function getCloneUSDCBalance(cloneAddress) {
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await contract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = await usdc.decimals();
+  const decimals = 18; // Arc testnet USDC: 18 decimals for display
   const balance = await usdc.balanceOf(cloneAddress);
   return ethers.formatUnits(balance, decimals);
 }
