@@ -20,6 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import Papa from "papaparse";
 import { useApp } from "../context/AppContext.jsx";
+import { useActiveAccount } from "thirdweb/react";
 import { useEthersSigner } from "../hooks/useEthersSigner.js";
 import TermsModal from "./TermsModal.jsx";
 import {
@@ -48,6 +49,7 @@ const EMPTY_MANUAL_ROW = { fullName: "", department: "", walletAddress: "", sala
  */
 export default function SetupModal({ isOpen, onClose, onDeployed }) {
   const { state, dispatch, addToast, syncData } = useApp();
+  const account = useActiveAccount();
   const { getSigner } = useEthersSigner();
 
   // Form state
@@ -186,6 +188,11 @@ export default function SetupModal({ isOpen, onClose, onDeployed }) {
         .map((d) => `${d.address.slice(0, 8)}... (rows ${d.rows.join(", ")})`)
         .join("; ");
       addToast(`Duplicate wallet addresses detected: ${details}. Please resolve before deploying.`, "error", 8000);
+      return;
+    }
+
+    if (!account) {
+      setDeployError("Wallet not ready. Please disconnect and reconnect your wallet.");
       return;
     }
 
