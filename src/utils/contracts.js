@@ -54,16 +54,26 @@ export async function getOrDeployPayrollClone(signer, onStatus = () => {}) {
   }
 
   onStatus("No contract found. Preparing deployment…");
-  const usdcAddress = await factory.usdc();
-  const fee = await factory.FEE();
-  const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const currentAllowance = await usdc.allowance(employerAddress, ADDRESSES.PAYROLL_FACTORY);
 
-  if (currentAllowance < fee) {
-    onStatus("Approving deployment fee in your wallet…");
-    const txApprove = await usdc.approve(ADDRESSES.PAYROLL_FACTORY, fee);
-    onStatus("Waiting for fee approval confirmation…");
-    await txApprove.wait(1);
+  // Attempt to read the deployment fee. Some factory versions are free to use
+  // and do not expose usdc() or FEE() — in that case skip the approval step.
+  // If a fee IS required, deployPayroll() itself will revert with a clear message.
+  try {
+    const usdcAddress = await factory.usdc();
+    const fee = await factory.deployFee();
+    if (fee > 0n && usdcAddress && usdcAddress !== ethers.ZeroAddress) {
+      const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
+      const currentAllowance = await usdc.allowance(employerAddress, ADDRESSES.PAYROLL_FACTORY);
+      if (currentAllowance < fee) {
+        onStatus("Approving deployment fee in your wallet…");
+        const txApprove = await usdc.approve(ADDRESSES.PAYROLL_FACTORY, fee);
+        onStatus("Waiting for fee approval confirmation…");
+        await txApprove.wait(1);
+      }
+    }
+  } catch {
+    // Factory does not expose fee functions — proceeding without approval
+    onStatus("No deployment fee required. Proceeding…");
   }
 
   onStatus("Deploying your personal payroll contract…");
@@ -118,7 +128,7 @@ export async function executePayroll(
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const decimals = 6;
+  const decimals = await usdc.decimals();
 
   // Format amounts and compute total
   let totalWei = 0n;
@@ -178,7 +188,7 @@ export async function getPayrollHistory(cloneAddress, employerAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = 18;
+  const decimals = await usdc.decimals();
 
   const filter = payrollContract.filters.BatchPaid(employerAddress);
   const events = await payrollContract.queryFilter(filter, 0, "latest");
@@ -237,7 +247,7 @@ export async function decodeBatchPayCalldata(txHash, cloneAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = 18;
+  const decimals = await usdc.decimals();
 
   return decoded.args[0].map((address, i) => ({
     employee: address,
@@ -331,8 +341,11 @@ export async function writeCIDToRegistry(signer, registryAddress, cid, onStatus 
 
 /** Drains all USDC from the clone to the owner. */
 export async function emergencyWithdraw(signer, cloneAddress) {
+  // The SaldenPayroll clone's emergencyWithdraw(address token) requires
+  // the token address — we always pass USDC since that's what it holds.
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
-  const tx = await contract.emergencyWithdraw();
+  const usdcAddress = await contract.usdc();
+  const tx = await contract.emergencyWithdraw(usdcAddress);
   return tx.wait(1);
 }
 
@@ -356,13 +369,11 @@ export async function unpauseContract(signer, cloneAddress) {
  * @param {string} cloneAddress
  * @param {string} amountUSDC - Human-readable e.g. "500"
  */
-export async function withdrawFunds(signer, cloneAddress, amountUSDC) {
+export async function withdrawFunds(signer, cloneAddress) {
+  // The SaldenPayroll clone's withdraw() takes no arguments —
+  // it transfers the entire USDC balance to the owner wallet.
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, signer);
-  const usdcAddress = await contract.usdc();
-  const usdc = new ethers.Contract(usdcAddress, USDC_ABI, signer);
-  const decimals = 6;
-  const amountWei = ethers.parseUnits(amountUSDC, decimals);
-  const tx = await contract.withdraw(amountWei);
+  const tx = await contract.withdraw();
   return tx.wait(1);
 }
 
@@ -379,7 +390,7 @@ export async function getCloneUSDCBalance(cloneAddress) {
   const contract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await contract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = 18;
+  const decimals = await usdc.decimals();
   const balance = await usdc.balanceOf(cloneAddress);
   return ethers.formatUnits(balance, decimals);
 }

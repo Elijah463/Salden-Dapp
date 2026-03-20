@@ -16,7 +16,6 @@ import {
   ShieldWarning,
   Lock,
   LockOpen,
-  CurrencyDollar,
   CheckCircle,
 } from "@phosphor-icons/react";
 import { useApp } from "../context/AppContext.jsx";
@@ -82,7 +81,6 @@ export default function Settings() {
   const [isPaused, setIsPaused] = useState(null);
   const [balance, setBalance] = useState(null);
   const [loadingState, setLoadingState] = useState(true);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
   const [confirm, setConfirm] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
@@ -140,29 +138,23 @@ export default function Settings() {
   };
 
   const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setWithdrawError("Enter a valid positive USDC amount.");
-      return;
-    }
-    if (balance !== null && amount > parseFloat(balance)) {
-      setWithdrawError("Amount exceeds available contract balance.");
+    if (!balance || parseFloat(balance) <= 0) {
+      setWithdrawError("No USDC balance available to withdraw.");
       return;
     }
     setWithdrawError("");
     setConfirm({
       title: "Confirm Withdrawal",
-      message: `This will transfer ${amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC from your payroll contract to your wallet. Confirm to proceed.`,
-      confirmLabel: "Withdraw",
+      message: `This will transfer the full balance of ${parseFloat(balance).toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC from your payroll contract to your wallet. Confirm to proceed.`,
+      confirmLabel: "Withdraw All",
       confirmClass: "bg-salden-blue hover:bg-salden-blue-dark",
       isDestructive: false,
       action: async () => {
         setActionState("withdraw", true);
         try {
           const signer = await getSigner();
-          await withdrawFunds(signer, activeCloneAddress, withdrawAmount);
-          addToast(`${amount} USDC withdrawn successfully.`, "success");
-          setWithdrawAmount("");
+          await withdrawFunds(signer, activeCloneAddress);
+          addToast("USDC withdrawn successfully.", "success");
           await loadContractState();
         } catch (err) {
           addToast("Withdrawal failed: " + err.message, "error");
@@ -293,28 +285,22 @@ export default function Settings() {
           <p className="font-semibold text-salden-text-primary">Withdraw USDC</p>
         </div>
         <p className="text-sm text-salden-text-secondary">
-          Transfer a specific amount of USDC from the payroll contract back to your connected wallet.
+          Transfer the full USDC balance from the payroll contract back to your connected wallet.
         </p>
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <CurrencyDollar size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-salden-text-muted pointer-events-none" />
-            <input
-              type="number"
-              value={withdrawAmount}
-              onChange={(e) => { setWithdrawAmount(e.target.value); setWithdrawError(""); }}
-              placeholder="Amount in USDC"
-              min={0}
-              step="0.01"
-              className="w-full bg-salden-card border border-salden-border rounded-xl pl-9 pr-4 py-2.5 text-sm text-salden-text-primary placeholder-salden-text-muted focus:outline-none focus:border-salden-blue/60 transition-colors"
-            />
-          </div>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-salden-text-muted">
+            Available:{" "}
+            <span className="text-salden-text-primary font-semibold">
+              {balance !== null ? `${parseFloat(balance).toLocaleString("en-US", { minimumFractionDigits: 2 })} USDC` : "—"}
+            </span>
+          </p>
           <button
             onClick={handleWithdraw}
-            disabled={!!actionLoading.withdraw || !withdrawAmount}
+            disabled={!!actionLoading.withdraw || !balance || parseFloat(balance) <= 0}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-salden-blue hover:bg-salden-blue-dark text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {actionLoading.withdraw ? <Spinner size={14} className="animate-spin" /> : <Download size={14} />}
-            Withdraw
+            Withdraw All
           </button>
         </div>
         {withdrawError && (
