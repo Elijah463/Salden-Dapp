@@ -389,7 +389,7 @@ export async function readCIDFromRegistry(registryAddress) {
 export async function writeCIDToRegistry(signer, registryAddress, cid, onStatus = () => {}) {
   const registry = new ethers.Contract(registryAddress, REGISTRY_ABI, signer);
   onStatus("Saving data pointer to blockchain…");
-  const tx = await registry.setCID(cid);
+  const tx = await registry.updateCID(cid);
   onStatus("Waiting for confirmation…");
   await tx.wait(1);
   onStatus("Data synchronised on-chain.");

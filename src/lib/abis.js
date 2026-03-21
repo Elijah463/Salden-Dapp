@@ -52,7 +52,8 @@ export const REGISTRY_FACTORY_ABI = [
 // Each user's personal on-chain registry that stores their encrypted IPFS CID.
 export const REGISTRY_ABI = [
   "function getCID() view returns (string)",
-  "function setCID(string calldata cid) external",
+  "function updateCID(string calldata cid) external",
+  "function hrAdmin() view returns (address)",
   "function owner() view returns (address)",
 ];
 

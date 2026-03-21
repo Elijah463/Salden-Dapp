@@ -28,11 +28,11 @@ import {
   CheckCircle,
   CopySimple,
   UsersThree,
-  CurrencyDollar,
   Buildings,
   UploadSimple,
   FileText,
 } from "@phosphor-icons/react";
+import usdcLogoUrl from "../assets/usdc_logo.svg";
 import { useApp } from "../context/AppContext.jsx";
 import { getMeta, setMeta } from "../utils/indexeddb.js";
 import { useEthersSigner } from "../hooks/useEthersSigner.js";
@@ -616,8 +616,8 @@ export default function HRDashboard() {
     setShowHistory(true);
 
     // ── Step 1: Show cached results immediately ─────────────────────────────
-    const cacheKey = `payHistory_${activeCloneAddress.toLowerCase()}`;
-    const blockKey = `payHistoryBlock_${activeCloneAddress.toLowerCase()}`;
+    const cacheKey = `payHistory_v2_${activeCloneAddress.toLowerCase()}`;
+    const blockKey = `payHistoryBlock_v2_${activeCloneAddress.toLowerCase()}`;
 
     try {
       const cached = await getMeta(cacheKey);
@@ -756,7 +756,7 @@ export default function HRDashboard() {
         {/* Gross payroll */}
         <div className="bg-salden-surface border border-salden-border rounded-2xl p-5">
           <div className="flex items-center gap-2 text-xs text-salden-text-muted mb-2">
-            <CurrencyDollar size={13} />
+            <img src={usdcLogoUrl} alt="USDC" className="w-3.5 h-3.5 object-contain" />
             Gross Total Pay
           </div>
           <div className="text-2xl font-bold text-salden-text-primary">
