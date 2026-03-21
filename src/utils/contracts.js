@@ -194,7 +194,7 @@ export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = 18; // Arc testnet USDC: 18 decimals for display
+  const decimals = 6; // Arc testnet USDC: amounts in BatchPaid were encoded with 6 decimals
 
   const latestBlock = await provider.getBlockNumber();
   const CHUNK = 9999;
@@ -303,7 +303,7 @@ export async function decodeBatchPayCalldata(txHash, cloneAddress) {
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
-  const decimals = 18; // Arc testnet USDC: 18 decimals for display
+  const decimals = 6; // Arc testnet USDC: amounts in batchPay were encoded with 6 decimals
 
   return decoded.args[0].map((address, i) => ({
     employee: address,

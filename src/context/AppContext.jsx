@@ -221,19 +221,23 @@ export function AppProvider({ children }) {
     dispatch({ type: "SET_SYNC_ERROR", payload: null });
 
     try {
-      const payload = buildPayload(overrides);
+      // Extract pre-obtained signer if passed, clean overrides before building payload
+      let signer = overrides._signer || null;
+      const { _signer: _removed, ...cleanOverrides } = overrides;
 
       // 1. Save to IndexedDB immediately — always works, no wallet needed
+      const payload = buildPayload(cleanOverrides);
       await savePayrollData(account, payload);
 
-      // 2. Get signer FIRST — before any async operations that could cause
-      // MetaMask to time out or lose the pending approval context.
-      // Acquiring the signer here is instant (no tx needed yet) and ensures
-      // the wallet is ready before we proceed with IPFS upload.
-      if (!signerGetterRef.current) {
-        throw new Error("Wallet signer not ready. Please reconnect your wallet.");
+      // 2. Get signer before IPFS upload so wallet is warm and ready.
+      // If caller passed a signer directly (ConfigureModal pattern), use it.
+      // Otherwise fall back to signerGetterRef.
+      if (!signer) {
+        if (!signerGetterRef.current) {
+          throw new Error("Wallet signer not ready. Please reconnect your wallet.");
+        }
+        signer = await signerGetterRef.current();
       }
-      const signer = await signerGetterRef.current();
 
       // 3. Encrypt and upload to IPFS
       let cid;
@@ -278,9 +282,9 @@ export function AppProvider({ children }) {
       // A prior version also dispatched SET_EMPLOYEES separately, causing
       // two renders for one logical update.
       if (
-        overrides.setup !== undefined ||
-        overrides.employees !== undefined ||
-        overrides.amlResults !== undefined
+        cleanOverrides.setup !== undefined ||
+        cleanOverrides.employees !== undefined ||
+        cleanOverrides.amlResults !== undefined
       ) {
         dispatch({ type: "SET_PAYROLL_DATA", payload: payload });
       }

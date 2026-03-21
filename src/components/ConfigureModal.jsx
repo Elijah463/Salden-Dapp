@@ -30,6 +30,7 @@ import {
 } from "@phosphor-icons/react";
 import Papa from "papaparse";
 import { useApp } from "../context/AppContext.jsx";
+import { useEthersSigner } from "../hooks/useEthersSigner.js";
 import TermsModal from "./TermsModal.jsx";
 import {
   validateEmployee,
@@ -56,6 +57,7 @@ const EMPTY_ROW = { fullName: "", department: "", walletAddress: "", salaryAmoun
  */
 export default function ConfigureModal({ isOpen, onClose, onComplete }) {
   const { state, addToast, syncData } = useApp();
+  const { getSigner } = useEthersSigner();
 
   // Pre-fill from existing state if available
   const [fullName, setFullName]           = useState(state.payrollSetup?.fullName    ?? "");
@@ -166,7 +168,12 @@ export default function ConfigureModal({ isOpen, onClose, onComplete }) {
     setSaveError("");
 
     try {
+      // Get signer before IPFS upload so wallet is primed and ready
+      // This is the same pattern used in OnboardingModal and avoids
+      // the signerGetterRef going stale during async IPFS upload.
+      const signer = await getSigner();
       await syncData({
+        _signer: signer,
         setup: {
           fullName:      sanitizeString(fullName),
           companyName:   sanitizeString(companyName),

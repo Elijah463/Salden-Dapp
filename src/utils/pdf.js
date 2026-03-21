@@ -1,25 +1,12 @@
 /**
  * pdf.js
  * Payroll receipt PDF generation using jsPDF and jspdf-autotable.
- * Generates professional receipts with the Salden logo for each
- * batch payment transaction.
  */
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import logoUrl from "../assets/logo.png";
+import receiptLogoUrl from "../assets/Receipt_logo.jpg";
 
-/**
- * Generates a PDF payroll receipt for a given batch payment.
- * @param {object} params
- * @param {string} params.employer - Employer wallet address (full)
- * @param {string} params.cloneAddress - Payroll contract address
- * @param {string} params.txHash - Transaction hash
- * @param {string} params.date - Human-readable date
- * @param {Array<{employee: string, amount: string}>} params.employees - Per-employee breakdown
- * @param {string} params.totalAmount - Total USDC paid
- * @param {string} params.receiptNumber - e.g. "1"
- */
 export function generatePayrollReceiptPDF({
   employer,
   cloneAddress,
@@ -41,25 +28,20 @@ export function generatePayrollReceiptPDF({
 
   // ─── Header ───────────────────────────────────────────────────────────────
 
-  // Salden Logo
+  // Receipt logo (contains the Salden brand already — no separate text needed)
   try {
-    doc.addImage(logoUrl, "PNG", margin, y, 60, 30);
+    doc.addImage(receiptLogoUrl, "JPEG", margin, y, 60, 30);
   } catch {
-    // If logo fails, continue without it
+    // Logo failed to load — continue without it
   }
 
-  // "SALDEN" text header
-  doc.setFontSize(22);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(6, 11, 24);
-  doc.text("SALDEN", margin + 64, y + 14);
-
+  // "Decentralized Payroll" sits directly under the logo image
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 116, 139);
-  doc.text("Decentralized Payroll", margin + 64, y + 20);
+  doc.text("Decentralized Payroll", margin, y + 36);
 
-  // "PAYROLL RECEIPT" on the right
+  // "PAYROLL RECEIPT" label on the right
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(37, 99, 235);
@@ -71,7 +53,7 @@ export function generatePayrollReceiptPDF({
   doc.text(`#${receiptNumber}`, pageWidth - margin, y + 12, { align: "right" });
   doc.text(date, pageWidth - margin, y + 17, { align: "right" });
 
-  y += 36;
+  y += 42;
 
   // Divider
   doc.setDrawColor(30, 45, 74);
@@ -105,7 +87,6 @@ export function generatePayrollReceiptPDF({
     doc.setFont("helvetica", "normal");
     doc.setTextColor(6, 11, 24);
 
-    // Wrap long values (addresses, hashes)
     const displayValue =
       value.length > 60 ? doc.splitTextToSize(value, pageWidth - margin * 2 - 50) : value;
     doc.text(displayValue, margin + 50, y);
@@ -126,7 +107,7 @@ export function generatePayrollReceiptPDF({
 
   const tableRows = employees.map((emp, idx) => [
     (idx + 1).toString(),
-    emp.employee, // Full address
+    emp.employee,
     `${emp.amount} USDC`,
   ]);
 
@@ -176,7 +157,6 @@ export function generatePayrollReceiptPDF({
     { align: "center" }
   );
 
-  // Save the PDF
   const fileName = `Salden_Payroll_Receipt_${receiptNumber}_${date.replace(/[\s,]/g, "_")}.pdf`;
   doc.save(fileName);
 }

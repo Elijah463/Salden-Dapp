@@ -548,13 +548,14 @@ export default function HRDashboard() {
       const merged = [...employees, ...newEmployees];
       dispatch({ type: "SET_EMPLOYEES", payload: merged });
       try {
-        await syncData({ employees: merged });
+        const signer = await getSigner();
+        await syncData({ _signer: signer, employees: merged });
         addToast(`${newEmployees.length} employee${newEmployees.length !== 1 ? "s" : ""} imported successfully.`, "success");
-      } catch {
-        addToast("Employees added locally but sync failed. Changes may not persist.", "warning");
+      } catch (err) {
+        addToast("Sync failed: " + err.message, "warning");
       }
     },
-    [employees, dispatch, syncData, addToast]
+    [employees, dispatch, syncData, addToast, getSigner]
   );
 
   const handleAddEmployee = useCallback(
@@ -562,13 +563,14 @@ export default function HRDashboard() {
       const newEmployees = [...employees, { ...data }];
       dispatch({ type: "SET_EMPLOYEES", payload: newEmployees });
       try {
-        await syncData({ employees: newEmployees });
+        const signer = await getSigner();
+        await syncData({ _signer: signer, employees: newEmployees });
         addToast("Employee added and data synced.", "success");
-      } catch {
-        addToast("Employee added locally. Sync failed — please retry.", "warning");
+      } catch (err) {
+        addToast("Sync failed: " + err.message, "warning");
       }
     },
-    [employees, dispatch, syncData, addToast]
+    [employees, dispatch, syncData, addToast, getSigner]
   );
 
   // ── Edit employee ──────────────────────────────────────────────────────────
@@ -580,13 +582,14 @@ export default function HRDashboard() {
       );
       dispatch({ type: "SET_EMPLOYEES", payload: newEmployees });
       try {
-        await syncData({ employees: newEmployees });
+        const signer = await getSigner();
+        await syncData({ _signer: signer, employees: newEmployees });
         addToast("Employee updated and data synced.", "success");
-      } catch {
-        addToast("Updated locally. Sync failed — please retry.", "warning");
+      } catch (err) {
+        addToast("Sync failed: " + err.message, "warning");
       }
     },
-    [employees, dispatch, syncData, addToast]
+    [employees, dispatch, syncData, addToast, getSigner]
   );
 
   // ── Delete employee ────────────────────────────────────────────────────────
@@ -596,13 +599,14 @@ export default function HRDashboard() {
       const newEmployees = employees.filter((_, i) => i !== rowIndex);
       dispatch({ type: "SET_EMPLOYEES", payload: newEmployees });
       try {
-        await syncData({ employees: newEmployees });
+        const signer = await getSigner();
+        await syncData({ _signer: signer, employees: newEmployees });
         addToast("Employee removed and data synced.", "success");
-      } catch {
-        addToast("Removed locally. Sync failed — please retry.", "warning");
+      } catch (err) {
+        addToast("Sync failed: " + err.message, "warning");
       }
     },
-    [employees, dispatch, syncData, addToast]
+    [employees, dispatch, syncData, addToast, getSigner]
   );
 
   // ── Load payroll history ───────────────────────────────────────────────────
