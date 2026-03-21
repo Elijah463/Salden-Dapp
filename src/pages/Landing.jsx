@@ -333,18 +333,7 @@ export default function Landing({ onConnected }) {
         <HeroSection account={account} onContinueSetup={handleContinueSetup} />
       </div>
 
-      {/* If wallet connected but no clone — show continue button below hero */}
-      {account && !state.hasPayrollClone && (
-        <div className="py-6 flex justify-center bg-salden-bg border-t border-salden-border">
-          <button
-            onClick={handleContinueSetup}
-            className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-salden-blue to-salden-violet text-white font-semibold text-sm hover:opacity-90 transition-all shadow-xl shadow-blue-900/30 animate-pulse-slow"
-          >
-            Continue with Payroll Setup
-            <ArrowRight size={16} />
-          </button>
-        </div>
-      )}
+
 
       {/* ── Section: Direct Payments ── */}
       <section id="features" className="py-20 px-6 max-w-6xl mx-auto">

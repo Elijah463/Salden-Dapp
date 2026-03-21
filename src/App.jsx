@@ -135,10 +135,18 @@ export default function App() {
           element={
             <Landing
               onConnected={() => {
-                // If already fully initialised and has a clone, go to dashboard
+                // Already fully initialised — go straight to dashboard
                 if (state.hasPayrollClone && state.hasSignedMessage) {
                   navigate("/dashboard");
+                  return;
                 }
+                // Signed but no clone yet — show onboarding
+                if (state.hasSignedMessage && !state.hasPayrollClone) {
+                  setShowOnboarding(true);
+                  return;
+                }
+                // Not yet signed — the initialize() effect will fire automatically
+                // after the wallet connects and show onboarding. Nothing to do here.
               }}
             />
           }

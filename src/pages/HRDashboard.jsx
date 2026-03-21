@@ -34,6 +34,7 @@ import {
   FileText,
 } from "@phosphor-icons/react";
 import { useApp } from "../context/AppContext.jsx";
+import { getMeta, setMeta } from "../utils/indexeddb.js";
 import { useEthersSigner } from "../hooks/useEthersSigner.js";
 import { DashboardSkeleton } from "../components/SkeletonLoader.jsx";
 import {
@@ -608,11 +609,49 @@ export default function HRDashboard() {
 
   const handleLoadHistory = useCallback(async () => {
     if (!activeCloneAddress || !state.account) return;
-    setHistoryLoading(true);
     setShowHistory(true);
+
+    // ── Step 1: Show cached results immediately ─────────────────────────────
+    const cacheKey = `payHistory_${activeCloneAddress.toLowerCase()}`;
+    const blockKey = `payHistoryBlock_${activeCloneAddress.toLowerCase()}`;
+
     try {
-      const history = await getPayrollHistory(activeCloneAddress, state.account);
-      setPayrollHistory(history);
+      const cached = await getMeta(cacheKey);
+      if (cached) {
+        setPayrollHistory(cached);
+      }
+    } catch { /* cache miss is fine */ }
+
+    // ── Step 2: Query only new blocks since last indexed ─────────────────────
+    setHistoryLoading(true);
+    try {
+      const lastIndexedBlock = await getMeta(blockKey).catch(() => null);
+      // If we have a cached block, query from the next block only (incremental).
+      // If no cache, pass null so getPayrollHistory does binary search.
+      const fromBlock = lastIndexedBlock !== null ? lastIndexedBlock + 1 : null;
+
+      const { events: newEvents, lastBlock } = await getPayrollHistory(
+        activeCloneAddress,
+        state.account,
+        fromBlock
+      );
+
+      // ── Step 3: Merge new results with cached ──────────────────────────────
+      let merged = newEvents;
+      if (fromBlock !== null && newEvents.length >= 0) {
+        const cached = await getMeta(cacheKey).catch(() => []);
+        const existing = cached || [];
+        // Deduplicate by txHash then sort newest first
+        const seen = new Set(existing.map((h) => h.transactionHash));
+        const fresh = newEvents.filter((h) => !seen.has(h.transactionHash));
+        merged = [...fresh, ...existing].sort((a, b) => b.timestamp - a.timestamp);
+      }
+
+      setPayrollHistory(merged);
+
+      // ── Step 4: Persist to IndexedDB ───────────────────────────────────────
+      await setMeta(cacheKey, merged);
+      await setMeta(blockKey, lastBlock);
     } catch (err) {
       addToast("Failed to load payment history: " + err.message, "error");
     } finally {

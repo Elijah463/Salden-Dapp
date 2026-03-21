@@ -182,19 +182,68 @@ export async function executePayroll(
  * @param {string} employerAddress
  * @returns {Promise<Array>} Sorted newest-first
  */
-export async function getPayrollHistory(cloneAddress, employerAddress) {
+/**
+ * @param {string}  cloneAddress
+ * @param {string}  employerAddress
+ * @param {number}  [fromBlock=null] - If provided, skip binary search and query from this block.
+ *                                     Pass the lastIndexedBlock+1 for incremental updates.
+ * @returns {Promise<{events: Array, lastBlock: number}>}
+ */
+export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock = null) {
   const provider = getReadProvider();
   const payrollContract = new ethers.Contract(cloneAddress, PAYROLL_CLONE_ABI, provider);
   const usdcAddress = await payrollContract.usdc();
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
   const decimals = 18; // Arc testnet USDC: 18 decimals for display
 
-  // Arc testnet limits eth_getLogs to a 10,000 block range.
-  // Query from (latestBlock - 9999) to avoid the range error.
+  // Arc testnet limits eth_getLogs to a 10,000 block range per request.
+  // Arc is at 33M+ blocks so querying from 0 would require 3,300+ RPC calls.
+  //
+  // Strategy: get the block the clone contract was DEPLOYED at by fetching
+  // the transaction that created it. Every contract has a deployTransaction
+  // accessible via provider.getCode and the contract's creation tx.
+  // We use getHistory on the contract address to find its creation block,
+  // then paginate only from that block forward — typically a very small range.
   const latestBlock = await provider.getBlockNumber();
-  const fromBlock = Math.max(0, latestBlock - 9999);
+  const CHUNK = 9999;
   const filter = payrollContract.filters.BatchPaid(employerAddress);
-  const events = await payrollContract.queryFilter(filter, fromBlock, "latest");
+  const events = [];
+
+  // Find the deployment block by binary-searching for when contract code appeared.
+  // This is efficient: O(log N) RPC calls instead of O(N/9999).
+  // If fromBlock is provided (incremental update), skip binary search entirely.
+  // Otherwise binary-search for the contract deployment block so we don't
+  // scan 33M+ blocks from genesis.
+  let startBlock = fromBlock;
+
+  if (startBlock === null) {
+    // Binary search: find exact block where contract code first appeared.
+    // O(log 33M) ≈ 25 RPC calls — far better than 3,300 brute-force chunks.
+    try {
+      let lo = 0;
+      let hi = latestBlock;
+      while (lo < hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const code = await provider.getCode(cloneAddress, mid);
+        if (code && code !== "0x") {
+          hi = mid;
+        } else {
+          lo = mid + 1;
+        }
+      }
+      startBlock = lo;
+    } catch {
+      // Fallback: last 50,000 blocks (~5 RPC calls, covers ~2 weeks on Arc)
+      startBlock = Math.max(0, latestBlock - 50000);
+    }
+  }
+
+  // Paginate from startBlock to latest in 9,999-block chunks
+  for (let from = startBlock; from <= latestBlock; from += CHUNK) {
+    const to = Math.min(from + CHUNK - 1, latestBlock);
+    const chunk = await payrollContract.queryFilter(filter, from, to);
+    events.push(...chunk);
+  }
 
   const history = await Promise.all(
     events.map(async (event) => {
@@ -223,7 +272,10 @@ export async function getPayrollHistory(cloneAddress, employerAddress) {
     })
   );
 
-  return history.sort((a, b) => b.timestamp - a.timestamp);
+  return {
+    events: history.sort((a, b) => b.timestamp - a.timestamp),
+    lastBlock: latestBlock,
+  };
 }
 
 /**

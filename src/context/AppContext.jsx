@@ -19,6 +19,7 @@ import {
   useCallback,
   useRef,
 } from "react";
+import { ethers } from "ethers";
 import {
   getPayrollData,
   savePayrollData,
@@ -240,8 +241,21 @@ export function AppProvider({ children }) {
         throw new Error("IPFS upload failed: " + ipfsErr.message);
       }
 
-      // 3. Obtain signer for on-chain registry write
-      const signer = await signerGetterRef.current();
+      // 3. Obtain signer for on-chain registry write.
+      // Use window.ethereum BrowserProvider directly when available — this is
+      // the most reliable path for MetaMask and injected wallets and always
+      // supports sendTransaction. Falls back to signerGetterRef for non-injected
+      // wallets (WalletConnect, etc.).
+      let signer;
+      if (typeof window !== "undefined" && window.ethereum) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+      } else {
+        if (!signerGetterRef.current) {
+          throw new Error("Signer not available. Please reconnect your wallet.");
+        }
+        signer = await signerGetterRef.current();
+      }
 
       // 4. Ensure registry exists — always do a fresh lookup to avoid stale state
       let regAddr = stateRef.current.registryAddress;
