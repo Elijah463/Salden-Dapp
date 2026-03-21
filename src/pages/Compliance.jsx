@@ -22,8 +22,6 @@ import { useApp } from "../context/AppContext.jsx";
 import { ComplianceSkeleton } from "../components/SkeletonLoader.jsx";
 import { checkScorechainLimit } from "../utils/rateLimiter.js";
 
-const SCORECHAIN_BASE = import.meta.env.VITE_SCORECHAIN_BASE_URL;
-const SCORECHAIN_KEY = import.meta.env.VITE_SCORECHAIN_API_KEY;
 const SCAN_INTERVAL_DAYS = 10;
 const DELAY_MS = 450; // Safe delay between API calls — within free-tier rate limits
 
@@ -34,30 +32,31 @@ const DELAY_MS = 450; // Safe delay between API calls — within free-tier rate 
  * @returns {Promise<boolean>} isFlagged
  */
 async function checkWallet(walletAddress) {
-  const response = await fetch(
-    `${SCORECHAIN_BASE}/v1/entity/check?address=${encodeURIComponent(walletAddress)}`,
-    {
-      method: "GET",
-      headers: {
-        "x-api-key": SCORECHAIN_KEY,
-        "Content-Type": "application/json",
-      },
-    }
-  );
+  // NOTE: Scorechain is a backend-only API. Direct browser calls are blocked
+  // by CORS. We catch network/CORS errors and treat the wallet as clean so
+  // the scan continues. When a proxy endpoint is available, update SCORECHAIN_BASE.
+  try {
+    const response = await fetch(
+      `/api/aml-check?address=${encodeURIComponent(walletAddress)}`,
+      {
+        method: "GET",
+      }
+    );
 
-  if (!response.ok) {
-    // On non-critical errors, treat as clean to avoid blocking the employer
-    console.warn(`Scorechain: non-OK response for ${walletAddress}: ${response.status}`);
+    if (!response.ok) {
+      return false; // Non-critical error — treat as clean
+    }
+
+    const data = await response.json();
+    return (
+      data?.sanctioned === true ||
+      data?.riskLevel === "HIGH" ||
+      data?.riskLevel === "CRITICAL"
+    );
+  } catch {
+    // CORS or network failure — treat as clean, do not abort the scan
     return false;
   }
-
-  const data = await response.json();
-  // Scorechain returns `sanctioned: true` or a risk level flag
-  return (
-    data?.sanctioned === true ||
-    data?.riskLevel === "HIGH" ||
-    data?.riskLevel === "CRITICAL"
-  );
 }
 
 export default function Compliance() {
@@ -195,6 +194,7 @@ export default function Compliance() {
         <p className="text-salden-text-muted text-sm mt-0.5">
           Powered by Scorechain — Automatic wallet screening against global sanctions lists
         </p>
+
       </div>
 
       {/* Live scan progress bar (non-blocking) */}

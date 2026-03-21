@@ -143,7 +143,7 @@ function HeroSection({ account, onContinueSetup }) {
           transition={{ duration: 0.6 }}
           className="flex items-center justify-center gap-3 mb-8"
         >
-          <img src={logoImg} alt="Salden" className="h-28 w-auto object-contain shadow-lg" />
+          <img src={logoImg} alt="Salden" className="h-64 w-auto object-contain shadow-lg" />
         </motion.div>
 
         {/* Headline */}
@@ -293,7 +293,7 @@ export default function Landing({ onConnected }) {
       <header className="fixed top-0 left-0 right-0 z-40 bg-salden-bg/80 backdrop-blur-md border-b border-salden-border/50">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src={logoImg} alt="Salden" className="h-10 w-auto object-contain" />
+            <img src={logoImg} alt="Salden" className="h-20 w-auto object-contain" />
           </div>
           <ConnectButton
             client={client}

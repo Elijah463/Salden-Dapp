@@ -228,28 +228,44 @@ export function AppProvider({ children }) {
     try {
       const payload = buildPayload(overrides);
 
-      // 1. Save locally
+      // 1. Save locally first — this always works even if IPFS/chain fails
       await savePayrollData(account, payload);
 
       // 2. Encrypt and upload to IPFS
-      const encryptedBlob = await encryptData(encryptionKey, payload);
-      const cid = await uploadToIPFS(encryptedBlob, account);
+      let encryptedBlob, cid;
+      try {
+        encryptedBlob = await encryptData(encryptionKey, payload);
+        cid = await uploadToIPFS(encryptedBlob, account);
+      } catch (ipfsErr) {
+        throw new Error("IPFS upload failed: " + ipfsErr.message);
+      }
 
       // 3. Obtain signer for on-chain registry write
       const signer = await signerGetterRef.current();
 
-      // 4. Ensure registry exists
-      let regAddr = registryAddress || stateRef.current.registryAddress;
+      // 4. Ensure registry exists — always do a fresh lookup to avoid stale state
+      let regAddr = stateRef.current.registryAddress;
       if (!regAddr) {
         regAddr = await getUserRegistry(account);
+        if (regAddr) dispatch({ type: "SET_REGISTRY", payload: regAddr });
       }
       if (!regAddr) {
-        regAddr = await createUserRegistry(signer, account);
-        dispatch({ type: "SET_REGISTRY", payload: regAddr });
+        try {
+          regAddr = await createUserRegistry(signer, account);
+          dispatch({ type: "SET_REGISTRY", payload: regAddr });
+        } catch (regErr) {
+          throw new Error("Registry creation failed: " + regErr.message);
+        }
       }
 
       // 5. Write new CID to registry
-      await writeCIDToRegistry(signer, regAddr, cid);
+      try {
+        await writeCIDToRegistry(signer, regAddr, cid);
+        // Cache the CID locally so loadData can skip IPFS fetch if unchanged
+        await setMeta(`lastCid_${account.toLowerCase()}`, cid);
+      } catch (cidErr) {
+        throw new Error("Registry update failed — please approve the transaction in your wallet: " + cidErr.message);
+      }
 
       // 6. Update in-memory state from overrides.
       // A single SET_PAYROLL_DATA dispatch is sufficient — it handles

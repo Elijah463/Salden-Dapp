@@ -80,11 +80,8 @@ export default function Sidebar() {
             <img
               src={logoImg}
               alt="Salden Logo"
-              className="w-8 h-8 rounded-lg object-cover"
+              className="h-16 w-auto object-contain"
             />
-            <span className="text-salden-text-primary font-bold text-lg tracking-tight">
-              Salden
-            </span>
           </div>
           <button
             onClick={toggleSidebar}

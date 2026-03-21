@@ -690,8 +690,8 @@ export default function HRDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-salden-text-primary">HR Dashboard</h1>
         {payrollSetup?.companyName && (
-          <p className="text-salden-text-muted text-sm mt-0.5 flex items-center gap-1.5">
-            <Buildings size={13} />
+          <p className="text-salden-text-muted text-base mt-1 flex items-center gap-2 font-medium">
+            <Buildings size={20} />
             {payrollSetup.companyName}
           </p>
         )}

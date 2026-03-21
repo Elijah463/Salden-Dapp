@@ -189,8 +189,12 @@ export async function getPayrollHistory(cloneAddress, employerAddress) {
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
   const decimals = 18; // Arc testnet USDC: 18 decimals for display
 
+  // Arc testnet limits eth_getLogs to a 10,000 block range.
+  // Query from (latestBlock - 9999) to avoid the range error.
+  const latestBlock = await provider.getBlockNumber();
+  const fromBlock = Math.max(0, latestBlock - 9999);
   const filter = payrollContract.filters.BatchPaid(employerAddress);
-  const events = await payrollContract.queryFilter(filter, 0, "latest");
+  const events = await payrollContract.queryFilter(filter, fromBlock, "latest");
 
   const history = await Promise.all(
     events.map(async (event) => {
