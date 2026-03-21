@@ -185,8 +185,8 @@ export async function executePayroll(
 /**
  * @param {string}  cloneAddress
  * @param {string}  employerAddress
- * @param {number}  [fromBlock=null] - If provided, skip binary search and query from this block.
- *                                     Pass the lastIndexedBlock+1 for incremental updates.
+ * @param {number}  [fromBlock=null] - Pass lastIndexedBlock+1 for incremental updates.
+ *                                     Pass null on first load to auto-detect deploy block.
  * @returns {Promise<{events: Array, lastBlock: number}>}
  */
 export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock = null) {
@@ -196,49 +196,52 @@ export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock
   const usdc = new ethers.Contract(usdcAddress, USDC_ABI, provider);
   const decimals = 18; // Arc testnet USDC: 18 decimals for display
 
-  // Arc testnet limits eth_getLogs to a 10,000 block range per request.
-  // Arc is at 33M+ blocks so querying from 0 would require 3,300+ RPC calls.
-  //
-  // Strategy: get the block the clone contract was DEPLOYED at by fetching
-  // the transaction that created it. Every contract has a deployTransaction
-  // accessible via provider.getCode and the contract's creation tx.
-  // We use getHistory on the contract address to find its creation block,
-  // then paginate only from that block forward — typically a very small range.
   const latestBlock = await provider.getBlockNumber();
   const CHUNK = 9999;
   const filter = payrollContract.filters.BatchPaid(employerAddress);
   const events = [];
 
-  // Find the deployment block by binary-searching for when contract code appeared.
-  // This is efficient: O(log N) RPC calls instead of O(N/9999).
-  // If fromBlock is provided (incremental update), skip binary search entirely.
-  // Otherwise binary-search for the contract deployment block so we don't
-  // scan 33M+ blocks from genesis.
   let startBlock = fromBlock;
 
   if (startBlock === null) {
-    // Binary search: find exact block where contract code first appeared.
-    // O(log 33M) ≈ 25 RPC calls — far better than 3,300 brute-force chunks.
+    // Find the clone's deployment block using the PayrollFactory's NewPayrollCreated
+    // event. Both owner and payrollAddress are indexed, so we can filter directly
+    // by cloneAddress — this finds the exact block with minimal RPC calls.
+    // We scan backward from latest in chunks until we find it.
+    // The factory and clone are always recently deployed on this testnet,
+    // so in practice this finds it within the first 1-2 chunks (backward).
     try {
-      let lo = 0;
-      let hi = latestBlock;
-      while (lo < hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        const code = await provider.getCode(cloneAddress, mid);
-        if (code && code !== "0x") {
-          hi = mid;
-        } else {
-          lo = mid + 1;
+      const factory = new ethers.Contract(
+        ADDRESSES.PAYROLL_FACTORY,
+        PAYROLL_FACTORY_ABI,
+        provider
+      );
+      let found = false;
+      // Scan backward from latest — find deployment event
+      for (let end = latestBlock; end > 0 && !found; end -= CHUNK) {
+        const start = Math.max(0, end - CHUNK + 1);
+        const deployEvents = await factory.queryFilter(
+          factory.filters.NewPayrollCreated(null, cloneAddress),
+          start,
+          end
+        );
+        if (deployEvents.length > 0) {
+          startBlock = deployEvents[0].blockNumber;
+          found = true;
         }
+        // Stop after checking 20 chunks back (~200k blocks = ~2 days on Arc)
+        // to avoid scanning the entire chain if the event is not found
+        if (latestBlock - end > 200000) break;
       }
-      startBlock = lo;
-    } catch {
-      // Fallback: last 50,000 blocks (~5 RPC calls, covers ~2 weeks on Arc)
-      startBlock = Math.max(0, latestBlock - 50000);
+    } catch { /* swallow */ }
+
+    if (startBlock === null) {
+      // Absolute fallback: last 200,000 blocks
+      startBlock = Math.max(0, latestBlock - 200000);
     }
   }
 
-  // Paginate from startBlock to latest in 9,999-block chunks
+  // Paginate from deployment block to latest in 9,999-block chunks
   for (let from = startBlock; from <= latestBlock; from += CHUNK) {
     const to = Math.min(from + CHUNK - 1, latestBlock);
     const chunk = await payrollContract.queryFilter(filter, from, to);
@@ -247,7 +250,6 @@ export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock
 
   const history = await Promise.all(
     events.map(async (event) => {
-      // ethers v6: use provider.getBlock(), not event.getBlock()
       const block = await provider.getBlock(event.blockNumber);
       return {
         date: new Date(block.timestamp * 1000).toLocaleString("en-US", {
@@ -277,7 +279,6 @@ export async function getPayrollHistory(cloneAddress, employerAddress, fromBlock
     lastBlock: latestBlock,
   };
 }
-
 /**
  * Decodes calldata from a batchPay transaction to extract per-employee amounts.
  *

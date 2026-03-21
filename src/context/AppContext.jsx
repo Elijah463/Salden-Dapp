@@ -25,6 +25,7 @@ import {
   savePayrollData,
   setMeta,
   getMeta,
+  deleteMeta,
 } from "../utils/indexeddb.js";
 import {
   deriveKeyFromSignature,
@@ -205,21 +206,14 @@ export function AppProvider({ children }) {
   const syncData = useCallback(async (overrides = {}) => {
     if (syncInProgress.current) return;
 
-    const { account, encryptionKey, registryAddress } = stateRef.current;
+    const { account, encryptionKey } = stateRef.current;
     if (!account || !encryptionKey) {
       throw new Error("Wallet not connected or encryption key unavailable.");
-    }
-    if (!signerGetterRef.current) {
-      throw new Error("Signer not available. Please reconnect your wallet.");
     }
 
     const uploadLimit = checkPinataUploadLimit();
     if (!uploadLimit.allowed) {
       throw new Error("Upload rate limit reached. Please wait before syncing again.");
-    }
-    const registryLimit = checkRegistryWriteLimit();
-    if (!registryLimit.allowed) {
-      throw new Error("Registry write rate limit reached. Please wait.");
     }
 
     syncInProgress.current = true;
@@ -229,35 +223,29 @@ export function AppProvider({ children }) {
     try {
       const payload = buildPayload(overrides);
 
-      // 1. Save locally first — this always works even if IPFS/chain fails
+      // 1. Save to IndexedDB immediately — always works, no wallet needed
       await savePayrollData(account, payload);
 
-      // 2. Encrypt and upload to IPFS
-      let encryptedBlob, cid;
+      // 2. Get signer FIRST — before any async operations that could cause
+      // MetaMask to time out or lose the pending approval context.
+      // Acquiring the signer here is instant (no tx needed yet) and ensures
+      // the wallet is ready before we proceed with IPFS upload.
+      if (!signerGetterRef.current) {
+        throw new Error("Wallet signer not ready. Please reconnect your wallet.");
+      }
+      const signer = await signerGetterRef.current();
+
+      // 3. Encrypt and upload to IPFS
+      let cid;
       try {
-        encryptedBlob = await encryptData(encryptionKey, payload);
+        const encryptedBlob = await encryptData(encryptionKey, payload);
         cid = await uploadToIPFS(encryptedBlob, account);
+        await setMeta(`pendingCid_${account.toLowerCase()}`, cid);
       } catch (ipfsErr) {
         throw new Error("IPFS upload failed: " + ipfsErr.message);
       }
 
-      // 3. Obtain signer for on-chain registry write.
-      // Use window.ethereum BrowserProvider directly when available — this is
-      // the most reliable path for MetaMask and injected wallets and always
-      // supports sendTransaction. Falls back to signerGetterRef for non-injected
-      // wallets (WalletConnect, etc.).
-      let signer;
-      if (typeof window !== "undefined" && window.ethereum) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        signer = await provider.getSigner();
-      } else {
-        if (!signerGetterRef.current) {
-          throw new Error("Signer not available. Please reconnect your wallet.");
-        }
-        signer = await signerGetterRef.current();
-      }
-
-      // 4. Ensure registry exists — always do a fresh lookup to avoid stale state
+      // 4. Ensure registry exists
       let regAddr = stateRef.current.registryAddress;
       if (!regAddr) {
         regAddr = await getUserRegistry(account);
@@ -272,13 +260,16 @@ export function AppProvider({ children }) {
         }
       }
 
-      // 5. Write new CID to registry
+      // 5. Write CID to registry — this requires a wallet transaction approval
       try {
         await writeCIDToRegistry(signer, regAddr, cid);
-        // Cache the CID locally so loadData can skip IPFS fetch if unchanged
+        // Success — cache the synced CID and clear the pending one
         await setMeta(`lastCid_${account.toLowerCase()}`, cid);
+        await deleteMeta(`pendingCid_${account.toLowerCase()}`);
       } catch (cidErr) {
-        throw new Error("Registry update failed — please approve the transaction in your wallet: " + cidErr.message);
+        // Registry write failed. The data IS on IPFS (step 2 succeeded).
+        // Store pendingCid so the user can retry just this step.
+        throw new Error("Registry update failed. Your data is saved on IPFS but the on-chain pointer could not be updated. Please try saving again to approve the transaction: " + cidErr.message);
       }
 
       // 6. Update in-memory state from overrides.
